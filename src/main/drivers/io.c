@@ -35,20 +35,7 @@ const struct ioPortDef_s ioPortDefs[] = {
     { RCC_APB2(IOPC) },
     { RCC_APB2(IOPD) },
     { RCC_APB2(IOPE) },
-{
-#if defined (STM32F10X_HD) || defined (STM32F10X_XL) || defined (STM32F10X_HD_VL)
-    RCC_APB2(IOPF),
-#else
-    0,
-#endif
-},
-{
-#if defined (STM32F10X_HD) || defined (STM32F10X_XL) || defined (STM32F10X_HD_VL)
-    RCC_APB2(IOPG),
-#else
-    0,
-#endif
-},
+    { 0, }, { 0, },
 };
 #elif defined(STM32F3)
 const struct ioPortDef_s ioPortDefs[] = {

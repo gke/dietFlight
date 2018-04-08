@@ -59,10 +59,6 @@ void spiInitDevice(SPIDevice device)
     IOConfigGPIOAF(IOGetByTag(spi->sck),  SPI_IO_AF_CFG, spi->af);
     IOConfigGPIOAF(IOGetByTag(spi->miso), SPI_IO_AF_CFG, spi->af);
     IOConfigGPIOAF(IOGetByTag(spi->mosi), SPI_IO_AF_CFG, spi->af);
-#elif defined(STM32F10X)
-    IOConfigGPIO(IOGetByTag(spi->sck), SPI_IO_AF_SCK_CFG);
-    IOConfigGPIO(IOGetByTag(spi->miso), SPI_IO_AF_MISO_CFG);
-    IOConfigGPIO(IOGetByTag(spi->mosi), SPI_IO_AF_MOSI_CFG);
 #else
 #error Undefined MCU architecture
 #endif

@@ -283,9 +283,9 @@ typedef enum BlackboxState {
 typedef struct blackboxMainState_s {
     uint32_t time;
 
-    int32_t axisPID_P[XYZ_AXIS_COUNT];
-    int32_t axisPID_I[XYZ_AXIS_COUNT];
-    int32_t axisPID_D[XYZ_AXIS_COUNT];
+    int32_t RateP[XYZ_AXIS_COUNT];
+    int32_t RateI[XYZ_AXIS_COUNT];
+    int32_t RateD[XYZ_AXIS_COUNT];
 
     int16_t rcCommand[4];
     int16_t gyroADC[XYZ_AXIS_COUNT];
@@ -522,13 +522,13 @@ static void writeIntraframe(void)
     blackboxWriteUnsignedVB(blackboxIteration);
     blackboxWriteUnsignedVB(blackboxCurrent->time);
 
-    blackboxWriteSignedVBArray(blackboxCurrent->axisPID_P, XYZ_AXIS_COUNT);
-    blackboxWriteSignedVBArray(blackboxCurrent->axisPID_I, XYZ_AXIS_COUNT);
+    blackboxWriteSignedVBArray(blackboxCurrent->RateP, XYZ_AXIS_COUNT);
+    blackboxWriteSignedVBArray(blackboxCurrent->RateI, XYZ_AXIS_COUNT);
 
     // Don't bother writing the current D term if the corresponding PID setting is zero
     for (int x = 0; x < XYZ_AXIS_COUNT; x++) {
         if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_NONZERO_PID_D_0 + x)) {
-            blackboxWriteSignedVB(blackboxCurrent->axisPID_D[x]);
+            blackboxWriteSignedVB(blackboxCurrent->RateD[x]);
         }
     }
 
@@ -643,14 +643,14 @@ static void writeInterframe(void)
     blackboxWriteSignedVB((int32_t) (blackboxHistory[0]->time - 2 * blackboxHistory[1]->time + blackboxHistory[2]->time));
 
     int32_t deltas[8];
-    arraySubInt32(deltas, blackboxCurrent->axisPID_P, blackboxLast->axisPID_P, XYZ_AXIS_COUNT);
+    arraySubInt32(deltas, blackboxCurrent->RateP, blackboxLast->RateP, XYZ_AXIS_COUNT);
     blackboxWriteSignedVBArray(deltas, XYZ_AXIS_COUNT);
 
     /*
      * The PID I field changes very slowly, most of the time +-2, so use an encoding
      * that can pack all three fields into one byte in that situation.
      */
-    arraySubInt32(deltas, blackboxCurrent->axisPID_I, blackboxLast->axisPID_I, XYZ_AXIS_COUNT);
+    arraySubInt32(deltas, blackboxCurrent->RateI, blackboxLast->RateI, XYZ_AXIS_COUNT);
     blackboxWriteTag2_3S32(deltas);
 
     /*
@@ -659,7 +659,7 @@ static void writeInterframe(void)
      */
     for (int x = 0; x < XYZ_AXIS_COUNT; x++) {
         if (testBlackboxCondition(FLIGHT_LOG_FIELD_CONDITION_NONZERO_PID_D_0 + x)) {
-            blackboxWriteSignedVB(blackboxCurrent->axisPID_D[x] - blackboxLast->axisPID_D[x]);
+            blackboxWriteSignedVB(blackboxCurrent->RateD[x] - blackboxLast->RateD[x]);
         }
     }
 
@@ -990,9 +990,9 @@ static void loadMainState(timeUs_t currentTimeUs)
     blackboxCurrent->time = currentTimeUs;
 
     for (int i = 0; i < XYZ_AXIS_COUNT; i++) {
-        blackboxCurrent->axisPID_P[i] = axisPID_P[i];
-        blackboxCurrent->axisPID_I[i] = axisPID_I[i];
-        blackboxCurrent->axisPID_D[i] = axisPID_D[i];
+        blackboxCurrent->RateP[i] = RateP[i];
+        blackboxCurrent->RateI[i] = RateI[i];
+        blackboxCurrent->RateD[i] = RateD[i];
         blackboxCurrent->gyroADC[i] = lrintf(gyro.gyroADCf[i]);
         blackboxCurrent->accADC[i] = acc.accADC[i];
 #ifdef USE_MAG

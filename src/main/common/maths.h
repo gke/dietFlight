@@ -150,3 +150,14 @@ static inline float constrainf(float amt, float low, float high)
     else
         return amt;
 }
+
+
+static inline float constrain1f(float amt, float lim)
+{
+    if (amt < -lim)
+        return -lim;
+    else if (amt > lim)
+        return lim;
+    else
+        return amt;
+}

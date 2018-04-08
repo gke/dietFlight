@@ -35,34 +35,26 @@ void softSpiInit(const softSPIDevice_t *dev)
 {
     // SCK as output
     IOInit(IOGetByTag(dev->sckTag),  OWNER_SPI_SCK,  RESOURCE_INDEX(SOFT_SPIDEV_1) + 10);
-#if defined(STM32F10X)
-    IOConfigGPIO(IOGetByTag(dev->sckTag), IO_CONFIG(GPIO_Mode_Out_PP, GPIO_Speed_50MHz));
-#elif defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F3) || defined(STM32F4)
     IOConfigGPIOAF(IOGetByTag(dev->sckTag), SPI_IO_AF_CFG, 0);
 #endif
 
     // MOSI as output
     IOInit(IOGetByTag(dev->mosiTag),  OWNER_SPI_MOSI,  RESOURCE_INDEX(SOFT_SPIDEV_1) + 10);
-#if defined(STM32F10X)
-    IOConfigGPIO(IOGetByTag(dev->mosiTag), IO_CONFIG(GPIO_Mode_Out_PP, GPIO_Speed_50MHz));
-#elif defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F3) || defined(STM32F4)
     IOConfigGPIOAF(IOGetByTag(dev->mosiTag), SPI_IO_AF_CFG, 0);
 #endif
 
     // MISO as input
     IOInit(IOGetByTag(dev->misoTag),  OWNER_SPI_MISO,  RESOURCE_INDEX(SOFT_SPIDEV_1) + 10);
-#if defined(STM32F10X)
-    IOConfigGPIO(IOGetByTag(dev->misoTag), IO_CONFIG(GPIO_Mode_IN_FLOATING, GPIO_Speed_50MHz));
-#elif defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F3) || defined(STM32F4)
     IOConfigGPIOAF(IOGetByTag(dev->misoTag), SPI_IO_AF_CFG, 0);
 #endif
 
     // NSS as output
     if (dev->nssTag != IOTAG_NONE) {
         IOInit(IOGetByTag(dev->nssTag),  OWNER_SPI_CS,  RESOURCE_INDEX(SOFT_SPIDEV_1) + 10);
-#if defined(STM32F10X)
-        IOConfigGPIO(IOGetByTag(dev->nssTag), IO_CONFIG(GPIO_Mode_Out_PP, GPIO_Speed_50MHz));
-#elif defined(STM32F3) || defined(STM32F4)
+#if defined(STM32F3) || defined(STM32F4)
         IOConfigGPIOAF(IOGetByTag(dev->nssTag), SPI_IO_AF_CFG, 0);
 #endif
     }

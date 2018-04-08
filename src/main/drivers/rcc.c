@@ -42,11 +42,6 @@ void RCC_ResetCmd(rccPeriphTag_t periphTag, FunctionalState NewState)
     (void)NewState;
 #else
     switch (tag) {
-#if defined(STM32F3) || defined(STM32F10X_CL)
-    case RCC_AHB:
-        RCC_AHBPeriphResetCmd(mask, NewState);
-        break;
-#endif
     case RCC_APB2:
         RCC_APB2PeriphResetCmd(mask, NewState);
         break;

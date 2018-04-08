@@ -566,9 +566,9 @@ bool processRx(timeUs_t currentTimeUs)
             const uint8_t lowThrottleLimit = pidConfig()->runaway_takeoff_deactivate_throttle;
             const uint8_t midThrottleLimit = constrain(lowThrottleLimit * 2, lowThrottleLimit * 2, RUNAWAY_TAKEOFF_HIGH_THROTTLE_PERCENT);
             if ((((throttlePercent >= lowThrottleLimit) && areSticksActive(RUNAWAY_TAKEOFF_DEACTIVATE_STICK_PERCENT)) || (throttlePercent >= midThrottleLimit))
-                && (fabsf(axisPIDSum[FD_PITCH]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)
-                && (fabsf(axisPIDSum[FD_ROLL]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)
-                && (fabsf(axisPIDSum[FD_YAW]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)) {
+                && (fabsf(RateOut[FD_PITCH]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)
+                && (fabsf(RateOut[FD_ROLL]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)
+                && (fabsf(RateOut[FD_YAW]) < RUNAWAY_TAKEOFF_DEACTIVATE_PIDSUM_LIMIT)) {
                 
                 inStableFlight = true;
                 if (runawayTakeoffDeactivateUs == 0) {
@@ -801,9 +801,9 @@ static void subTaskPidController(timeUs_t currentTimeUs)
         && !runawayTakeoffTemporarilyDisabled
         && (!feature(FEATURE_MOTOR_STOP) || isAirmodeActive() || (calculateThrottleStatus() != THROTTLE_LOW))) {
 
-        if (((fabsf(axisPIDSum[FD_PITCH]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD)
-            || (fabsf(axisPIDSum[FD_ROLL]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD)
-            || (fabsf(axisPIDSum[FD_YAW]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD))
+        if (((fabsf(RateOut[FD_PITCH]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD)
+            || (fabsf(RateOut[FD_ROLL]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD)
+            || (fabsf(RateOut[FD_YAW]) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD))
             && ((ABS(gyroAbsRateDps(FD_PITCH)) > RUNAWAY_TAKEOFF_GYRO_LIMIT_RP)
                 || (ABS(gyroAbsRateDps(FD_ROLL)) > RUNAWAY_TAKEOFF_GYRO_LIMIT_RP)
                 || (ABS(gyroAbsRateDps(FD_YAW)) > RUNAWAY_TAKEOFF_GYRO_LIMIT_YAW))) {

@@ -29,13 +29,8 @@ extern uint8_t __config_end;
 #endif
 
 #if !defined(FLASH_PAGE_SIZE)
-// F1
-# if defined(STM32F10X_MD)
-#  define FLASH_PAGE_SIZE                 (0x400)
-# elif defined(STM32F10X_HD)
-#  define FLASH_PAGE_SIZE                 (0x800)
 // F3
-# elif defined(STM32F303xC)
+# if defined(STM32F303xC)
 #  define FLASH_PAGE_SIZE                 (0x800)
 // F4
 # elif defined(STM32F40_41xxx)

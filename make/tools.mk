@@ -290,11 +290,11 @@ ifeq ($(shell [ -d "$(ARM_SDK_DIR)" ] && echo "exists"), exists)
   ARM_SDK_PREFIX := $(ARM_SDK_DIR)/bin/arm-none-eabi-
 else ifeq (,$(findstring _install,$(MAKECMDGOALS)))
   GCC_VERSION = $(shell arm-none-eabi-gcc -dumpversion)
-  ifeq ($(GCC_VERSION),)
-    $(error **ERROR** arm-none-eabi-gcc not in the PATH. Run 'make arm_sdk_install' to install automatically in the tools folder of this repo)
-  else ifneq ($(GCC_VERSION), $(GCC_REQUIRED_VERSION))
-    $(error **ERROR** your arm-none-eabi-gcc is '$(GCC_VERSION)', but '$(GCC_REQUIRED_VERSION)' is expected. Override with 'GCC_REQUIRED_VERSION' in make/local.mk or run 'make arm_sdk_install' to install the right version automatically in the tools folder of this repo)
-  endif
+#  ifeq ($(GCC_VERSION),)
+#    $(error **ERROR** arm-none-eabi-gcc not in the PATH. Run 'make arm_sdk_install' to install automatically in the tools folder of this repo)
+#  else ifneq ($(GCC_VERSION), $(GCC_REQUIRED_VERSION))
+#    $(error **ERROR** your arm-none-eabi-gcc is '$(GCC_VERSION)', but '$(GCC_REQUIRED_VERSION)' is expected. Override with 'GCC_REQUIRED_VERSION' in make/local.mk or run 'make arm_sdk_install' to install the right version automatically in the tools folder of this repo)
+#	endif
 
   # ARM tookchain is in the path, and the version is what's required.
   ARM_SDK_PREFIX ?= arm-none-eabi-

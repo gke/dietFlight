@@ -78,7 +78,6 @@ static FAST_RAM float itermLimit;
 
 typedef union dtermFilterLpf_u {
 	pt1Filter_t pt1Filter[2];
-	biquadFilter_t biquadFilter[2];
 	firFilterDenoise_t denoisingFilter[2];
 } dtermFilterLpf_t;
 

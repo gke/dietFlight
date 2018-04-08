@@ -295,11 +295,9 @@ static const char * const lookupOverclock[] = {
 };
 #endif
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
-#ifdef USE_GYRO_FAST_KALMAN
 static const char * const lookupTableStage2FilterType[] = {
     "NONE", "BIQUAD_RC_FIR2", "FAST_KALMAN", "FIXED_K_KALMAN"
 };
-#endif
 #endif // Only use lookup when both are enabled
 
 const lookupTableEntry_t lookupTables[] = {
@@ -363,9 +361,7 @@ const lookupTableEntry_t lookupTables[] = {
     { lookupOverclock, sizeof(lookupOverclock) / sizeof(char *) },
 #endif
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
-#ifdef USE_GYRO_FAST_KALMAN
     { lookupTableStage2FilterType, sizeof(lookupTableStage2FilterType) / sizeof(char *) },
-#endif
 #endif // Only enable lookup if both are available
 };
 
@@ -398,12 +394,10 @@ const clivalue_t valueTable[] = {
 #else
 #if defined(USE_GYRO_BIQUAD_RC_FIR2)
     { "gyro_stage2_lowpass_hz",     VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_soft_lpf_hz_2) },
-#if defined(USE_GYRO_FAST_KALMAN)
     { "gyro_filter_q",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_q) },
     { "gyro_filter_r",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_r) },
     { "gyro_filter_p",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_p) },
     { "gyro_stage2_filter_type",    VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_STAGE2_FILTER_TYPE }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_stage2_filter_type) },
-#endif
 #endif
 #endif
     { "moron_threshold",            VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0,  200 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyroMovementCalibrationThreshold) },

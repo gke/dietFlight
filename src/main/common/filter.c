@@ -1,5 +1,4 @@
 
-
 /*
  * This file is part of Cleanflight.
  *
@@ -35,56 +34,57 @@
 
 // NULL filter
 
-FAST_CODE float nullFilterApply(filter_t *filter, float input)
-{
-    UNUSED(filter);
-    return input;
+FAST_CODE float nullFilterApply(filter_t *filter, float input) {
+	UNUSED(filter);
+	return input;
 }
-
 
 // PT1 Low Pass filter
 
-void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT)
-{
-    float RC = 1.0f / ( 2.0f * M_PI_FLOAT * f_cut );
-    filter->k = dT / (RC + dT);
+void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT) {
+	float RC = 1.0f / (2.0f * M_PI_FLOAT * f_cut);
+	filter->k = dT / (RC + dT);
 }
 
-FAST_CODE float pt1FilterApply(pt1Filter_t *filter, float input)
-{
-    filter->state = filter->state + filter->k * (input - filter->state);
-    return filter->state;
-}
+FAST_CODE float pt1FilterApply(pt1Filter_t *filter, float input) {
+	filter->state = filter->state + filter->k * (input - filter->state);
+	return filter->state;
+} // pt1FilterApply
+
+// PT1 Low Pass filter
+
+void ptnFilterInit(pt1Filter_t *filter, uint8_t order, uint8_t f_cut, float dT) {
+	float RC = 1.0f / (2.0f * M_PI_FLOAT * f_cut);
+	filter->k = dT / (RC + dT);
+} // ptnFilterInit
+
+FAST_CODE float ptnFilterApply(pt1Filter_t *filter, float input) {
+	filter->state = filter->state + filter->k * (input - filter->state);
+	return filter->state;
+} // ptnFilterApply
+
 
 // Slew filter with limit
 
-void slewFilterInit(slewFilter_t *filter, float slewLimit, float threshold)
-{
-    filter->state = 0.0f;
-    filter->slewLimit = slewLimit;
-    filter->threshold = threshold;
-}
+void slewFilterInit(slewFilter_t *filter, float slewLimit, float threshold) {
+	filter->state = 0.0f;
+	filter->slewLimit = slewLimit;
+	filter->threshold = threshold;
+} // slewFilterInit
 
-FAST_CODE float slewFilterApply(slewFilter_t *filter, float input)
-{
-    if (filter->state >= filter->threshold) {
-        if (input >= filter->state - filter->slewLimit) {
-            filter->state = input;
-        }
-    } else if (filter->state <= -filter->threshold) {
-        if (input <= filter->state + filter->slewLimit) {
-            filter->state = input;
-        }
-    } else {
-        filter->state = input;
-    }
-    return filter->state;
-}
-
-
-float filterGetNotchQ(uint16_t centerFreq, uint16_t cutoff) {
-    float octaves = log2f((float) centerFreq  / (float) cutoff) * 2;
-    return sqrtf(powf(2, octaves)) / (powf(2, octaves) - 1);
+FAST_CODE float slewFilterApply(slewFilter_t *filter, float input) {
+	if (filter->state >= filter->threshold) {
+		if (input >= filter->state - filter->slewLimit) {
+			filter->state = input;
+		}
+	} else if (filter->state <= -filter->threshold) {
+		if (input <= filter->state + filter->slewLimit) {
+			filter->state = input;
+		}
+	} else {
+		filter->state = input;
+	}
+	return filter->state;
 }
 
 /* sets up a biquad Filter */
@@ -159,6 +159,7 @@ FAST_CODE void biquadFilterUpdate(biquadFilter_t *filter, float filterFreq, uint
     filter->y2 = y2;
 }
 
+
 /* Computes a biquadFilter_t filter on a sample (slightly less precise than df2 but works in dynamic mode) */
 FAST_CODE float biquadFilterApplyDF1(biquadFilter_t *filter, float input)
 {
@@ -188,181 +189,179 @@ FAST_CODE float biquadFilterApply(biquadFilter_t *filter, float input)
 /*
  * FIR filter
  */
-void firFilterInit2(firFilter_t *filter, float *buf, uint8_t bufLength, const float *coeffs, uint8_t coeffsLength)
-{
-    filter->buf = buf;
-    filter->bufLength = bufLength;
-    filter->coeffs = coeffs;
-    filter->coeffsLength = coeffsLength;
-    filter->movingSum = 0.0f;
-    filter->index = 0;
-    filter->count = 0;
-    memset(filter->buf, 0, sizeof(float) * filter->bufLength);
+void firFilterInit2(firFilter_t *filter, float *buf, uint8_t bufLength,
+		const float *coeffs, uint8_t coeffsLength) {
+	filter->buf = buf;
+	filter->bufLength = bufLength;
+	filter->coeffs = coeffs;
+	filter->coeffsLength = coeffsLength;
+	filter->movingSum = 0.0f;
+	filter->index = 0;
+	filter->count = 0;
+	memset(filter->buf, 0, sizeof(float) * filter->bufLength);
 }
 
 /*
  * FIR filter initialisation
  * If the FIR filter is just to be used for averaging, then coeffs can be set to NULL
  */
-void firFilterInit(firFilter_t *filter, float *buf, uint8_t bufLength, const float *coeffs)
-{
-    firFilterInit2(filter, buf, bufLength, coeffs, bufLength);
+void firFilterInit(firFilter_t *filter, float *buf, uint8_t bufLength,
+		const float *coeffs) {
+	firFilterInit2(filter, buf, bufLength, coeffs, bufLength);
 }
 
-void firFilterUpdate(firFilter_t *filter, float input)
-{
-    filter->buf[filter->index++] = input; // index is at the first empty buffer positon
-    if (filter->index >= filter->bufLength) {
-        filter->index = 0;
-    }
+void firFilterUpdate(firFilter_t *filter, float input) {
+	filter->buf[filter->index++] = input; // index is at the first empty buffer positon
+	if (filter->index >= filter->bufLength) {
+		filter->index = 0;
+	}
 }
 
 /*
  * Update FIR filter maintaining a moving sum for quick moving average computation
  */
-void firFilterUpdateAverage(firFilter_t *filter, float input)
-{
-    filter->movingSum += input; // sum of the last <count> items, to allow quick moving average computation
-    filter->movingSum -=  filter->buf[filter->index]; // subtract the value that "drops off" the end of the moving sum
-    filter->buf[filter->index++] = input; // index is at the first empty buffer positon
-    if (filter->index >= filter->bufLength) {
-        filter->index = 0;
-    }
-    if (filter->count < filter->bufLength) {
-        ++filter->count;
-    }
+void firFilterUpdateAverage(firFilter_t *filter, float input) {
+	filter->movingSum += input; // sum of the last <count> items, to allow quick moving average computation
+	filter->movingSum -= filter->buf[filter->index]; // subtract the value that "drops off" the end of the moving sum
+	filter->buf[filter->index++] = input; // index is at the first empty buffer positon
+	if (filter->index >= filter->bufLength) {
+		filter->index = 0;
+	}
+	if (filter->count < filter->bufLength) {
+		++filter->count;
+	}
 }
 
-FAST_CODE float firFilterApply(const firFilter_t *filter)
-{
-    float ret = 0.0f;
-    int ii = 0;
-    int index;
-    for (index = filter->index - 1; index >= 0; ++ii, --index) {
-        ret += filter->coeffs[ii] * filter->buf[index];
-    }
-    for (index = filter->bufLength - 1; ii < filter->coeffsLength; ++ii, --index) {
-        ret += filter->coeffs[ii] * filter->buf[index];
-    }
-    return ret;
+FAST_CODE float firFilterApply(const firFilter_t *filter) {
+	float ret = 0.0f;
+	int ii = 0;
+	int index;
+	for (index = filter->index - 1; index >= 0; ++ii, --index) {
+		ret += filter->coeffs[ii] * filter->buf[index];
+	}
+	for (index = filter->bufLength - 1; ii < filter->coeffsLength; ++ii, --index) {
+		ret += filter->coeffs[ii] * filter->buf[index];
+	}
+	return ret;
 }
 
-FAST_CODE float firFilterUpdateAndApply(firFilter_t *filter, float input)
-{
-    firFilterUpdate(filter, input);
-    return firFilterApply(filter);
+FAST_CODE float firFilterUpdateAndApply(firFilter_t *filter, float input) {
+	firFilterUpdate(filter, input);
+	return firFilterApply(filter);
 }
 
 /*
  * Returns average of the last <count> items.
  */
-float firFilterCalcPartialAverage(const firFilter_t *filter, uint8_t count)
-{
-    float ret = 0.0f;
-    int index = filter->index;
-    for (int ii = 0; ii < filter->coeffsLength; ++ii) {
-        --index;
-        if (index < 0) {
-            index = filter->bufLength - 1;
-        }
-        ret += filter->buf[index];
-    }
-    return ret / count;
+float firFilterCalcPartialAverage(const firFilter_t *filter, uint8_t count) {
+	float ret = 0.0f;
+	int index = filter->index;
+	for (int ii = 0; ii < filter->coeffsLength; ++ii) {
+		--index;
+		if (index < 0) {
+			index = filter->bufLength - 1;
+		}
+		ret += filter->buf[index];
+	}
+	return ret / count;
 }
 
-float firFilterCalcMovingAverage(const firFilter_t *filter)
-{
-    return filter->movingSum / filter->count;
+float firFilterCalcMovingAverage(const firFilter_t *filter) {
+	return filter->movingSum / filter->count;
 }
 
-float firFilterLastInput(const firFilter_t *filter)
-{
-    // filter->index points to next empty item in buffer
-    const int index = filter->index == 0 ? filter->bufLength - 1 : filter->index - 1;
-    return filter->buf[index];
+float firFilterLastInput(const firFilter_t *filter) {
+	// filter->index points to next empty item in buffer
+	const int index = filter->index == 0 ? filter->bufLength - 1
+			: filter->index - 1;
+	return filter->buf[index];
 }
 
-void firFilterDenoiseInit(firFilterDenoise_t *filter, uint8_t gyroSoftLpfHz, uint16_t targetLooptime)
-{
-    memset(filter, 0, sizeof(firFilterDenoise_t));
-    filter->targetCount = constrain(lrintf((1.0f / (0.000001f * (float)targetLooptime)) / gyroSoftLpfHz), 1, MAX_FIR_DENOISE_WINDOW_SIZE);
-}
+void firFilterDenoiseInit(firFilterDenoise_t *filter, uint8_t gyroSoftLpfHz,
+		uint16_t targetLooptime) {
+	memset(filter, 0, sizeof(firFilterDenoise_t));
+	filter->targetCount = constrain(lrintf((1.0f / (0.000001f
+			* (float) targetLooptime)) / gyroSoftLpfHz), 1,
+			MAX_FIR_DENOISE_WINDOW_SIZE);
+} // firFilterDenoiseInit
 
 // prototype function for denoising of signal by dynamic moving average. Mainly for test purposes
-float firFilterDenoiseUpdate(firFilterDenoise_t *filter, float input)
-{
-    filter->state[filter->index] = input;
-    filter->movingSum += filter->state[filter->index++];
-    if (filter->index == filter->targetCount) {
-        filter->index = 0;
-    }
-    filter->movingSum -= filter->state[filter->index];
+float firFilterDenoiseUpdate(firFilterDenoise_t *filter, float input) {
+	filter->state[filter->index] = input;
+	filter->movingSum += filter->state[filter->index++];
+	if (filter->index == filter->targetCount)
+		filter->index = 0;
 
-    if (filter->targetCount >= filter->filledCount) {
-        return filter->movingSum / filter->targetCount;
-    } else {
-        return filter->movingSum / ++filter->filledCount + 1;
-    }
+	filter->movingSum -= filter->state[filter->index];
+
+	if (filter->targetCount >= filter->filledCount)
+		return filter->movingSum / filter->targetCount;
+	else
+		return filter->movingSum / ++filter->filledCount + 1;
+
+} // firFilterDenoiseUpdate
+
+
+// rs2k's fast "kalman" filter per Fujin
+void fixedKKalmanInit(fastKalman_t *filter, uint16_t f_cut, float dT) {
+	float RC = 1.0f / (2.0f * M_PI_FLOAT * f_cut);
+	float a = dT / (RC + dT);
+
+	filter->x = 0.0f; // set initial value, can be zero if unknown
+	filter->lastX = 0.0f; // set initial value, can be zero if unknown
+	filter->k = a / 2; // "kalman" gain - half of RC coefficient
 }
 
-// ledvinap's proposed RC+FIR2 Biquad-- 1st order IIR, RC filter k
-void biquadRCFIR2FilterInit(biquadFilter_t *filter, uint16_t f_cut, float dT)
-{
-    float RC = 1.0f / ( 2.0f * M_PI_FLOAT * f_cut );
-    float k = dT / (RC + dT);
-    filter->b0 = k / 2;
-    filter->b1 = k / 2;
-    filter->b2 = 0;
-    filter->a1 = -(1 - k);
-    filter->a2 = 0;
-}
+FAST_CODE float fixedKKalmanUpdate(fastKalman_t *filter, float input) {
+	filter->x += (filter->x - filter->lastX);
+	filter->lastX = filter->x;
+	filter->x += filter->k * (input - filter->x);
+	return filter->x;
+} //fixedKKalmanInit
 
 
-#if defined(ROBERT_BOUWENS)
+#if defined(ROBERT)
 
-void InitializeAlphaBeta(float x_measured, float alpha, float beta, fastKalman_t* pab)
-{
-    pab->xk_1 = x_measured;
-    pab->vk_1 = 0;
-    pab->a = alpha;
-    pab->b = beta;
-    pab->g = 0.0f;
-}
+void InitializeAlphaBeta(float x_measured, float alpha, float beta, fastKalman_t* pab) {
+	pab->xk_1 = x_measured;
+	pab->vk_1 = 0;
+	pab->a = alpha;
+	pab->b = beta;
+	pab->g = 0.0f;
+} // InitializeAlphaBeta
 
 // near critically damped filter
 void createNearCriticalFilter(fastKalman_t* pab, float x_measured, float alpha)
 {
-    const float beta = 0.8f * (2.0f - alpha * alpha - 2.0f * sqrtf(1.0f - alpha * alpha)) / (alpha * alpha);
+	const float beta = 0.8f * (2.0f - alpha * alpha - 2.0f * sqrtf(1.0f - alpha * alpha)) / (alpha * alpha);
 
-    InitializeAlphaBeta(x_measured, alpha, beta, pab);
-    pab->g = pab->b * pab->b / (pab->a * 2.0f);
-}
+	InitializeAlphaBeta(x_measured, alpha, beta, pab);
+	pab->g = pab->b * pab->b / (pab->a * 2.0f);
+} // createNearCriticalFilter
 
-void createUnderDampedFilter(fastKalman_t* pab, float x_measured, float alpha)
-{
-    const float beta = alpha * alpha / (2.0f - alpha); /*  standard, underdamped beta value */
+void createUnderDampedFilter(fastKalman_t* pab, float x_measured, float alpha) {
+	const float beta = alpha * alpha / (2.0f - alpha); /*  standard, underdamped beta value */
 
-    InitializeAlphaBeta(x_measured, alpha, beta, pab);
-    pab->g = pab->b * pab->b / (pab->a * 2.0f);
-}
+	InitializeAlphaBeta(x_measured, alpha, beta, pab);
+	pab->g = pab->b * pab->b / (pab->a * 2.0f);
+} // createUnderDampedFilter
 
 // Fast two-state Kalman
-void fastKalmanInit(fastKalman_t *filter, float q, float r, float p, float dt)
-{
-    (void) p;
-    const float Q = q * 0.001f;    // add multiplier to make tuning easier
-//    const float R = r * 0.001f;    // add multiplier to make tuning easier
-//    const float ALPHA = 0.85;
+void fastKalmanInit(fastKalman_t *filter, float q, float p, float dt) {
+	(void) p;
+	const float Q = q * 0.001f; // add multiplier to make tuning easier
+	//    const float R = r * 0.001f;    // add multiplier to make tuning easier
+	//    const float ALPHA = 0.85;
 
-    createNearCriticalFilter(filter, 0.0f, Q);
-//    calculateAlphaBetaGamma(dt, R, Q, filter);
-//    createUnderDampedFilter(filter, 0,  ALPHA);
-//    peter_nachtwey(filter);
+	createNearCriticalFilter(filter, 0.0f, Q);
+	//    calculateAlphaBetaGamma(dt, R, Q, filter);
+	//    createUnderDampedFilter(filter, 0,  ALPHA);
+	//    peter_nachtwey(filter);
 
-    filter->dt    = dt;
-    filter->dt2   = dt * dt;
-    filter->xk_1  = 0;
-}
+	filter->dt = dt;
+	filter->dt2 = dt * dt;
+	filter->xk_1 = 0;
+} // fastKalmanInit
 
 //FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input)
 //{
@@ -381,94 +380,75 @@ void fastKalmanInit(fastKalman_t *filter, float q, float r, float p, float dt)
 //    filter->p = (1.0f - filter->k) * filter->p;
 //
 //    return filter->x;
-//}
+//} fastKalmanUpdate
 
-FAST_CODE float fastKalmanUpdate(fastKalman_t *pab, float input)
-{
-    float xk_1  = pab->xk_1;
-    float vk_1  = pab->vk_1;
-    float ak_1  = pab->ak_1;
-    float alpha = pab->a;
-    float beta  = pab->b;
-    float gamma = pab->g;
+FAST_CODE float fastKalmanUpdate(fastKalman_t *pab, float input) {
+	float xk_1 = pab->xk_1;
+	float vk_1 = pab->vk_1;
+	float ak_1 = pab->ak_1;
+	float alpha = pab->a;
+	float beta = pab->b;
+	float gamma = pab->g;
 
-//    float xk;   // current system state (ie: position)
-//    float vk;   // derivative of system state (ie: velocity)
-    float rk;   // residual error
+	//    float xk;   // current system state (ie: position)
+	//    float vk;   // derivative of system state (ie: velocity)
+	float rk; // residual error
 
-    // update our (estimated) state 'x' from the system (ie pos = pos + vel (last).dt)
-    xk_1 += pab->dt * vk_1 + 0.5f * pab->dt2 * ak_1;
-    // update (estimated) velocity
-//    vk_1 += pab->dt * ak_1;
-    // what is our residual error (mesured - estimated)
-    rk = input - xk_1;
-    // update our estimates given the residual error.
-    xk_1 += alpha * rk;
-    vk_1 += beta / pab->dt * rk;
-    if (gamma)
-    {
-        ak_1 = ak_1 + gamma / (2.0f * pab->dt2) * rk;
-    }
+	// update our (estimated) state 'x' from the system (ie pos = pos + vel (last).dt)
+	xk_1 += pab->dt * vk_1 + 0.5f * pab->dt2 * ak_1;
+	// update (estimated) velocity
+	//    vk_1 += pab->dt * ak_1;
+	// what is our residual error (mesured - estimated)
+	rk = input - xk_1;
+	// update our estimates given the residual error.
+	xk_1 += alpha * rk;
+	vk_1 += beta / pab->dt * rk;
+	if (gamma)
+	{
+		ak_1 = ak_1 + gamma / (2.0f * pab->dt2) * rk;
+	}
 
-    //finished!
+	//finished!
 
-    //now all our "currents" become our "olds" for next time
-    pab->vk_1 = vk_1;
-    pab->xk_1 = xk_1;
-    pab->ak_1 = ak_1;
+	//now all our "currents" become our "olds" for next time
+	pab->vk_1 = vk_1;
+	pab->xk_1 = xk_1;
+	pab->ak_1 = ak_1;
 
-    return xk_1;
-}
+	return xk_1;
+} // fastKalmanUpdate
 
 #else
 
 // Fast two-state Kalman
-void fastKalmanInit(fastKalman_t *filter, float q, float r, float p)
-{
-    filter->q     = q * 0.000001f; // add multiplier to make tuning easier
-    filter->r     = r * 0.001f;    // add multiplier to make tuning easier
-    filter->p     = p * 0.001f;    // add multiplier to make tuning easier
-    filter->x     = 0.0f;          // set initial value, can be zero if unknown
-    filter->lastX = 0.0f;          // set initial value, can be zero if unknown
-    filter->k     = 0.0f;          // kalman gain
-}
+void fastKalmanInit(fastKalman_t *filter, float q, float r, float p) {
+	filter->q = q * 0.000001f; // add multiplier to make tuning easier
+	filter->r = r * 0.001f; // add multiplier to make tuning easier
+	filter->p = p * 0.001f; // add multiplier to make tuning easier
+	filter->x = 0.0f; // set initial value, can be zero if unknown
+	filter->lastX = 0.0f; // set initial value, can be zero if unknown
+	filter->k = 0.0f; // kalman gain
+} // fastKalmanInit
 
-FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input)
-{
-    // project the state ahead using acceleration
-    filter->x += (filter->x - filter->lastX);
+FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input) {
+	// project the state ahead using acceleration
+	filter->x += (filter->x - filter->lastX);
 
-    // update last state
-    filter->lastX = filter->x;
+	// update last state
+	filter->lastX = filter->x;
 
-    // prediction update
-    filter->p = filter->p + filter->q;
+	// prediction update
+	filter->p = filter->p + filter->q;
 
-    // measurement update
-    filter->k = filter->p / (filter->p + filter->r);
-    filter->x += filter->k * (input - filter->x);
-    filter->p = (1.0f - filter->k) * filter->p;
+	// measurement update
+	filter->k = filter->p / (filter->p + filter->r);
+	filter->x += filter->k * (input - filter->x);
+	filter->p = (1.0f - filter->k) * filter->p;
 
-    return filter->x;
-}
-
-// rs2k's fast "kalman" filter per Fujin
-void fixedKKalmanInit(fastKalman_t *filter, uint16_t f_cut, float dT)
-{
-    float RC = 1.0f / ( 2.0f * M_PI_FLOAT * f_cut );
-    float a = dT / (RC + dT);
-
-    filter->x     = 0.0f;          // set initial value, can be zero if unknown
-    filter->lastX = 0.0f;          // set initial value, can be zero if unknown
-    filter->k     = a / 2;         // "kalman" gain - half of RC coefficient
-}
-
-FAST_CODE float fixedKKalmanUpdate(fastKalman_t *filter, float input)
-{
-    filter->x += (filter->x - filter->lastX);
-    filter->lastX = filter->x;
-    filter->x += filter->k * (input - filter->x);
-    return filter->x;
-}
+	return filter->x;
+} // fastKalmanUpdate
 
 #endif
+
+
+

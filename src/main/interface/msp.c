@@ -1180,12 +1180,10 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
         sbufWriteU8(dst, currentPidProfile->dterm_filter_type);
         break;
 
-#ifdef USE_GYRO_FAST_KALMAN
     case MSP_FAST_KALMAN:
         sbufWriteU16(dst, gyroConfig()->gyro_filter_q);
         sbufWriteU16(dst, gyroConfig()->gyro_filter_r);
         break;
-#endif
 
 #ifdef USE_GYRO_IMUF9001
     case MSP_IMUF_CONFIG:
@@ -1671,12 +1669,10 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
         pidInitFilters(currentPidProfile);
         break;
 
-#ifdef USE_GYRO_FAST_KALMAN
     case MSP_SET_FAST_KALMAN:
         gyroConfigMutable()->gyro_filter_q = sbufReadU16(src);
         gyroConfigMutable()->gyro_filter_r = sbufReadU16(src);
         break;
-#endif
 
 #ifdef USE_GYRO_IMUF9001
     case MSP_SET_IMUF_CONFIG :

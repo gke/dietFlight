@@ -529,15 +529,13 @@ static biquadFilter_t servoFilter[MAX_SUPPORTED_SERVOS];
 
 void servosFilterInit(void)
 {
-    if (servoConfig()->servo_lowpass_freq) {
-        for (int servoIdx = 0; servoIdx < MAX_SUPPORTED_SERVOS; servoIdx++) {
+    if (servoConfig()->servo_lowpass_freq)
+        for (int servoIdx = 0; servoIdx < MAX_SUPPORTED_SERVOS; servoIdx++)
             biquadFilterInitLPF(&servoFilter[servoIdx], servoConfig()->servo_lowpass_freq, targetPidLooptime);
-        }
-    }
-
 }
-static void filterServos(void)
-{
+
+
+static void filterServos(void) {
 #if defined(MIXER_DEBUG)
     uint32_t startTime = micros();
 #endif

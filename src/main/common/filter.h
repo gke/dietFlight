@@ -60,14 +60,12 @@ typedef struct fastKalman_s {
     float k;       // kalman gain
     float x;       // state
     float lastX;   // previous state
-#if defined(ROBERT_BOUWENS)
-    float dt;
-    float a, b;
-    float g;
-    float dt2;
+#if defined(ROBERT)
+    float ak_1;
     float xk_1;
     float vk_1;
-    float ak_1;
+    float a, b, g;
+    float dt, dt2;
 #endif
 } fastKalman_t;
 
@@ -120,8 +118,8 @@ float filterGetNotchQ(uint16_t centerFreq, uint16_t cutoff);
 
 void biquadRCFIR2FilterInit(biquadFilter_t *filter, uint16_t f_cut, float dT);
 
-#if defined(ROBERT_BOUWENS)
-void fastKalmanInit(fastKalman_t *filter, float q, float r, float p, float dT);
+#if defined(ROBERT)
+void fastKalmanInit(fastKalman_t *filter, float q, float p, float dT);
 #else
 void fastKalmanInit(fastKalman_t *filter, float q, float r, float p);
 #endif
@@ -135,6 +133,9 @@ float fixedKKalmanUpdate(fastKalman_t *filter, float input);
 
 void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT);
 float pt1FilterApply(pt1Filter_t *filter, float input);
+
+void ptnFilterInit(pt1Filter_t *filter, uint8_t order, uint8_t f_cut, float dT);
+float ptnFilterApply(pt1Filter_t *filter, float input);
 
 void slewFilterInit(slewFilter_t *filter, float slewLimit, float threshold);
 float slewFilterApply(slewFilter_t *filter, float input);

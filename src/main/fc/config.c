@@ -15,10 +15,6 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define ROBERT_BOUWENS
-//#define GKE
-
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>

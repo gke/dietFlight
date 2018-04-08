@@ -213,7 +213,7 @@ bool spiTransfer(SPI_TypeDef *instance, const uint8_t *txData, uint8_t *rxData, 
 
 void spiSetDivisor(SPI_TypeDef *instance, uint16_t divisor)
 {
-#if !(defined(STM32F1) || defined(STM32F3))
+#if !defined(STM32F3)
     // SPI2 and SPI3 are on APB1/AHB1 which PCLK is half that of APB2/AHB2.
 
     if (instance == SPI2 || instance == SPI3) {

@@ -22,7 +22,7 @@ extiChannelRec_t extiChannelRecs[16];
 static const uint8_t extiGroups[16] = { 0, 1, 2, 3, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6 };
 static uint8_t extiGroupPriority[EXTI_IRQ_GROUPS];
 
-#if defined(STM32F1) || defined(STM32F4) || defined(STM32F7)
+#if defined(STM32F4) || defined(STM32F7)
 static const uint8_t extiGroupIRQn[EXTI_IRQ_GROUPS] = {
     EXTI0_IRQn,
     EXTI1_IRQn,
@@ -49,10 +49,6 @@ static const uint8_t extiGroupIRQn[EXTI_IRQ_GROUPS] = {
 
 void EXTIInit(void)
 {
-#if defined(STM32F1)
-    // enable AFIO for EXTI support
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-#endif
 #if defined(STM32F3) || defined(STM32F4)
     /* Enable SYSCFG clock otherwise the EXTI irq handlers are not called */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
@@ -160,7 +156,7 @@ void EXTIRelease(IO_t io)
 
 void EXTIEnable(IO_t io, bool enable)
 {
-#if defined(STM32F1) || defined(STM32F4) || defined(STM32F7)
+#if defined(STM32F4) || defined(STM32F7)
     uint32_t extiLine = IO_EXTI_Line(io);
     if (!extiLine)
         return;
@@ -178,7 +174,7 @@ void EXTIEnable(IO_t io, bool enable)
     else
         EXTI->IMR &= ~(1 << extiLine);
 #else
-# error "Unsupported target"
+# error "Only F3, F4 and F7 Arm supported"
 #endif
 }
 
@@ -205,7 +201,7 @@ void EXTI_IRQHandler(void)
 
 _EXTI_IRQ_HANDLER(EXTI0_IRQHandler);
 _EXTI_IRQ_HANDLER(EXTI1_IRQHandler);
-#if defined(STM32F1) || defined(STM32F4) || defined(STM32F7)
+#if defined(STM32F4) || defined(STM32F7)
 _EXTI_IRQ_HANDLER(EXTI2_IRQHandler);
 #elif defined(STM32F3)
 _EXTI_IRQ_HANDLER(EXTI2_TS_IRQHandler);

@@ -33,10 +33,6 @@
 
 #define MAX_PROFILE_COUNT 0
 
-#ifdef STM32F1
-#define MINIMAL_CLI
-#endif
-
 #ifdef STM32F3
 #define MINIMAL_CLI
 #endif

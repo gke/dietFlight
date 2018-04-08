@@ -31,9 +31,7 @@
 
 typedef struct adcTagMap_s {
     ioTag_t tag;
-#if !defined(STM32F1) // F1 pins have uniform connection to ADC instances
     uint8_t devices;
-#endif
     uint8_t channel;
 } adcTagMap_t;
 

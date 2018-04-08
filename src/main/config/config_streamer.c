@@ -77,9 +77,7 @@ void config_streamer_start(config_streamer_t *c, uintptr_t base, int size)
         c->unlocked = true;
     }
 
-#if defined(STM32F10X)
-    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
-#elif defined(STM32F303)
+#if defined(STM32F303)
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR);
 #elif defined(STM32F4)
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
@@ -88,7 +86,7 @@ void config_streamer_start(config_streamer_t *c, uintptr_t base, int size)
 #elif defined(UNIT_TEST) || defined(SIMULATOR_BUILD)
     // NOP
 #else
-# error "Unsupported CPU"
+# error "Only F3, F4 and F7 Arm supported"
 #endif
     c->err = 0;
 }

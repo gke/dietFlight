@@ -179,11 +179,8 @@ TARGET_MCU := STM32F7
 
 else ifeq ($(TARGET),$(filter $(TARGET), $(SITL_TARGETS)))
 TARGET_MCU := SITL
-
-else ifeq ($(TARGET),$(filter $(TARGET), $(F1_TARGETS)))
-TARGET_MCU := STM32F1
 else
-$(error Unknown target MCU specified.)
+$(error Unknown target Only F3, F4 and F7 Arm supported.)
 endif
 
 ifneq ($(BASE_TARGET), $(TARGET))

@@ -19,7 +19,6 @@
 
 #include "common/utils.h"
 
-#include "stm32f10x.h"
 #include "rcc.h"
 #include "timer.h"
 

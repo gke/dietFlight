@@ -111,55 +111,7 @@
 #define DEF_TIM_OUTPUT(ch)         CONCAT(DEF_TIM_OUTPUT__, DEF_TIM_CH_GET(ch))
 #define DEF_TIM_OUTPUT__D(chan_n, n_channel) PP_IIF(n_channel, TIMER_OUTPUT_N_CHANNEL, TIMER_OUTPUT_NONE)
 
-#if defined(STM32F1)
-
-#define DEF_TIM(tim, chan, pin, flags, out) {                           \
-    tim,                                                                \
-    IO_TAG(pin),                                                        \
-    DEF_TIM_CHANNEL(CH_ ## chan),                                       \
-    flags,                                                              \
-    (DEF_TIM_OUTPUT(CH_ ## chan) | out),                                \
-    DEF_TIM_DMA_COND(                                                   \
-        DEF_TIM_DMA_CHANNEL(TCH_## tim ## _ ## chan),                   \
-        DEF_TIM_DMA_HANDLER(TCH_## tim ## _ ## chan)                    \
-    )                                                                   \
-    }                                                                   \
-/**/
-
-#define DEF_TIM_CHANNEL(ch)        CONCAT(DEF_TIM_CHANNEL__, DEF_TIM_CH_GET(ch))
-#define DEF_TIM_CHANNEL__D(chan_n, n_channel) TIM_Channel_ ## chan_n
-
-#define DEF_TIM_DMA_CHANNEL(timch) CONCAT(DEF_TIM_DMA_CHANNEL__, DEF_TIM_DMA_GET(0, timch))
-#define DEF_TIM_DMA_CHANNEL__D(dma_n, chan_n) DMA ## dma_n ## _Channel ## chan_n
-#define DEF_TIM_DMA_CHANNEL__NONE NULL
-
-#define DEF_TIM_DMA_HANDLER(timch) CONCAT(DEF_TIM_DMA_HANDLER__, DEF_TIM_DMA_GET(0, timch))
-#define DEF_TIM_DMA_HANDLER__D(dma_n, chan_n) DMA ## dma_n ## _CH ## chan_n ## _HANDLER
-#define DEF_TIM_DMA_HANDLER__NONE 0
-
-/* add F1 DMA mappings here */
-// D(dma_n, channel_n)
-#define DEF_TIM_DMA__BTCH_TIM1_CH1    D(1, 2)
-#define DEF_TIM_DMA__BTCH_TIM1_CH2    NONE
-#define DEF_TIM_DMA__BTCH_TIM1_CH3    D(1, 6)
-#define DEF_TIM_DMA__BTCH_TIM1_CH4    D(1, 4)
-
-#define DEF_TIM_DMA__BTCH_TIM2_CH1    D(1, 5)
-#define DEF_TIM_DMA__BTCH_TIM2_CH2    D(1, 7)
-#define DEF_TIM_DMA__BTCH_TIM2_CH3    D(1, 1)
-#define DEF_TIM_DMA__BTCH_TIM2_CH4    D(1, 7)
-
-#define DEF_TIM_DMA__BTCH_TIM3_CH1    D(1, 6)
-#define DEF_TIM_DMA__BTCH_TIM3_CH2    NONE
-#define DEF_TIM_DMA__BTCH_TIM3_CH3    D(1, 2)
-#define DEF_TIM_DMA__BTCH_TIM3_CH4    D(1, 3)
-
-#define DEF_TIM_DMA__BTCH_TIM4_CH1    D(1, 1)
-#define DEF_TIM_DMA__BTCH_TIM4_CH2    D(1, 4)
-#define DEF_TIM_DMA__BTCH_TIM4_CH3    D(1, 5)
-#define DEF_TIM_DMA__BTCH_TIM4_CH4    NONE
-
-#elif defined(STM32F3)
+#if defined(STM32F3)
 
 #define DEF_TIM(tim, chan, pin, flags, out) {                           \
     tim,                                                                \

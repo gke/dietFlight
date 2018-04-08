@@ -319,6 +319,14 @@ static void validateAndFixConfig(void)
 #endif
 }
 
+#if defined(USE_GYRO_IMUF9001)
+#error IMUF9001 not supported for now
+#endif
+
+#if defined(STM32F1)
+#error Only F3, F4 and F7 Arm supported
+#endif
+
 #ifndef USE_OSD_SLAVE
 void validateAndFixGyroConfig(void)
 {
@@ -349,15 +357,11 @@ void validateAndFixGyroConfig(void)
 
     if (gyroConfig()->gyro_use_32khz) {
         // F1 and F3 can't handle high sample speed.
-#if defined(STM32F1)
-        gyroConfigMutable()->gyro_sync_denom = MAX(gyroConfig()->gyro_sync_denom, 16);
-#elif defined(STM32F3)
+#if defined(STM32F3)
         gyroConfigMutable()->gyro_sync_denom = MAX(gyroConfig()->gyro_sync_denom, 4);
 #endif
     } else {
-#if defined(STM32F1)
-        gyroConfigMutable()->gyro_sync_denom = MAX(gyroConfig()->gyro_sync_denom, 3);
-#endif
+
     }
 
     float samplingTime;

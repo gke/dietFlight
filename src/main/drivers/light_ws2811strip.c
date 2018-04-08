@@ -40,7 +40,7 @@
 #include "drivers/io.h"
 #include "light_ws2811strip.h"
 
-#if defined(STM32F1) || defined(STM32F3)
+#if defined(STM32F3)
 uint8_t ledStripDMABuffer[WS2811_DMA_BUFFER_SIZE];
 #else
 uint32_t ledStripDMABuffer[WS2811_DMA_BUFFER_SIZE];

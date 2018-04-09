@@ -15,6 +15,10 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+#define USE_OS_GYRO
+
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -135,7 +139,7 @@ PG_RESET_TEMPLATE(gyroConfig_t, gyroConfig,
 		.gyro_sync_denom = 1, // GYRO_SYNC_DENOM_DEFAULT,
 		.gyro_lpf = GYRO_LPF_NONE,
 		.gyro_soft_lpf_type = FILTER_PT1, // should be variable gke
-		.gyro_soft_lpf_hz = 90, // gke
+		.gyro_soft_lpf_hz = 100, // gke
 		.gyro_high_fsr = false,
 		.gyro_use_32khz = false,
 		.gyro_to_use = 0,
@@ -445,17 +449,17 @@ void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
 
 void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
 
-	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
 		gyroSensor->gyroDev.gyroADCRawPrevious[axis] = 0;
-		gyroSensor->overflowDetected[axis] = false;
-	}
 
 } // gyroInitNewtonianLimiter
 
 static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		uint16_t gyro_filter_q, uint16_t gyro_filter_r, uint16_t gyro_filter_p) {
 	gyroSensor->fastKalmanApplyFn = nullFilterApply;
+#if defined(ROBERT)
 	const float gyrodT = (float) gyro.targetLooptime * 0.000001f;
+#endif
 
 	// If Kalman Filter noise covariances for Process and Measurement are non-zero, we treat as enabled
 	if (gyro_filter_q != 0 && gyro_filter_r != 0) {
@@ -690,16 +694,17 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 			default:
 				break;
 			} // switch
+
+#if !defined(USE_OS_GYRO) // do low rate filtering in pid.c
 			gyroADCf = gyroSensor->softLpfFilterApplyFn(
 					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-
+#endif
 			gyro.gyroADCf[axis] = gyroADCf;
-			if (!gyroSensor->overflowDetected[axis]) {
 				// integrate using trapezium rule to avoid bias
 				accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
 						+ gyroADCf) * sampleDeltaUs;
 				gyroPrevious[axis] = gyroADCf;
-			}
+
 		}
 	} else {
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
@@ -722,16 +727,16 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 				break;
 			}
 			DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
+#if !defined(USE_OS_GYRO) // do low rate filtering in pid.c
 			gyroADCf = gyroSensor->softLpfFilterApplyFn(
 					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
+#endif
 
 			gyro.gyroADCf[axis] = gyroADCf;
-			if (!gyroSensor->overflowDetected[axis]) {
 				// integrate using trapezium rule to avoid bias
 				accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
 						+ gyroADCf) * sampleDeltaUs;
 				gyroPrevious[axis] = gyroADCf;
-			}
 		}
 	}
 } // gyroUpdateSensor

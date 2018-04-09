@@ -50,7 +50,7 @@ FAST_CODE float pt1FilterApply(pt1Filter_t *filter, float input) {
 	return filter->state;
 } // pt1FilterApply
 
-// PT1 Low Pass filter
+// PTn Low Pass filter
 
 void ptnFilterInit(ptnFilter_t *filter, uint8_t order, uint16_t f_cut, float dT) {
 

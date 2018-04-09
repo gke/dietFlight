@@ -102,7 +102,7 @@ attitudeEulerAngles_t attitude = EULER_INITIALIZE;
 PG_REGISTER_WITH_RESET_TEMPLATE(imuConfig_t, imuConfig, PG_IMU_CONFIG, 0);
 
 PG_RESET_TEMPLATE(imuConfig_t, imuConfig,
-    .dcm_kp = 2500,                // 1.0 * 10000
+    .dcm_kp = 10000,               // 1.0 * 10000
     .dcm_ki = 0,                   // 0.003 * 10000
     .small_angle = 25,
     .accDeadband = {.xy = 40, .z= 40},
@@ -395,7 +395,7 @@ STATIC_UNIT_TESTED void imuUpdateEulerAngles(void)
 
 static bool imuIsAccelerometerHealthy(void)
 {
-    float accMagnitude = 0;
+    float accMagnitude = 0.0f;
     for (int axis = 0; axis < 3; axis++) {
         const float a = acc.accADC[axis];
         accMagnitude += a * a;
@@ -404,7 +404,7 @@ static bool imuIsAccelerometerHealthy(void)
     accMagnitude = accMagnitude * 100 / (sq((int32_t)acc.dev.acc_1G));
 
     // Accept accel readings only in range 0.90g - 1.10g
-    return (81 < accMagnitude) && (accMagnitude < 121);
+    return (71 < accMagnitude) && (accMagnitude < 141);
 }
 
 static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)

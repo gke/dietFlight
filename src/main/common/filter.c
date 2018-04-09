@@ -1,4 +1,3 @@
-
 /*
  * This file is part of Cleanflight.
  *
@@ -41,8 +40,8 @@ FAST_CODE float nullFilterApply(filter_t *filter, float input) {
 
 // PT1 Low Pass filter
 
-void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT) {
-	float RC = 1.0f / (2.0f * M_PI_FLOAT * f_cut);
+void pt1FilterInit(pt1Filter_t *filter, uint16_t f_cut, float dT) {
+	float RC = 1.0f / (2.0f * M_PI_FLOAT * (float)f_cut);
 	filter->k = dT / (RC + dT);
 }
 
@@ -53,14 +52,33 @@ FAST_CODE float pt1FilterApply(pt1Filter_t *filter, float input) {
 
 // PT1 Low Pass filter
 
-void ptnFilterInit(pt1Filter_t *filter, uint8_t order, uint8_t f_cut, float dT) {
-	float RC = 1.0f / (2.0f * M_PI_FLOAT * f_cut);
-	filter->k = dT / (RC + dT);
+void ptnFilterInit(ptnFilter_t *filter, uint8_t order, uint16_t f_cut, float dT) {
+
+	// AdjCutHz = CutHz /(sqrtf(powf(2, 1/Order) -1))
+	const float ScaleF[] = { 1.0f, 1.553773974f, 1.961459177f, 2.298959223f };
+	int n;
+	float Adj_f_cut;
+
+	filter->order = (order > 4) ? 4 : order;
+	for (n = 1; n <= filter->order; n++)
+		filter->state[n] = 0.0f;
+
+	Adj_f_cut = (float)f_cut * ScaleF[filter->order];
+
+	filter->k = dT / ((1.0f / (2.0f * M_PI_FLOAT * Adj_f_cut)) + dT);
+
 } // ptnFilterInit
 
-FAST_CODE float ptnFilterApply(pt1Filter_t *filter, float input) {
-	filter->state = filter->state + filter->k * (input - filter->state);
-	return filter->state;
+FAST_CODE float ptnFilterApply(ptnFilter_t *filter, float input) {
+int n;
+
+	filter->state[0] = input;
+
+	for (n = 1; n <= filter->order; n++)
+		filter->state[n] += (filter->state[n - 1] - filter->state[n])
+				* filter->k;
+
+	return filter->state[n];
 } // ptnFilterApply
 
 
@@ -88,102 +106,102 @@ FAST_CODE float slewFilterApply(slewFilter_t *filter, float input) {
 }
 
 /* sets up a biquad Filter */
-void biquadFilterInitLPF(biquadFilter_t *filter, float filterFreq, uint32_t refreshRate)
-{
-    biquadFilterInit(filter, filterFreq, refreshRate, BIQUAD_Q, FILTER_LPF);
+void biquadFilterInitLPF(biquadFilter_t *filter, float filterFreq,
+		uint32_t refreshRate) {
+	biquadFilterInit(filter, filterFreq, refreshRate, BIQUAD_Q, FILTER_LPF);
 }
 
-void biquadFilterInit(biquadFilter_t *filter, float filterFreq, uint32_t refreshRate, float Q, biquadFilterType_e filterType)
-{
-    // setup variables
-    const float omega = 2.0f * M_PI_FLOAT * filterFreq * refreshRate * 0.000001f;
-    const float sn = sin_approx(omega);
-    const float cs = cos_approx(omega);
-    const float alpha = sn / (2.0f * Q);
+void biquadFilterInit(biquadFilter_t *filter, float filterFreq,
+		uint32_t refreshRate, float Q, biquadFilterType_e filterType) {
+	// setup variables
+	const float omega = 2.0f * M_PI_FLOAT * filterFreq * refreshRate
+			* 0.000001f;
+	const float sn = sin_approx(omega);
+	const float cs = cos_approx(omega);
+	const float alpha = sn / (2.0f * Q);
 
-    float b0 = 0, b1 = 0, b2 = 0, a0 = 0, a1 = 0, a2 = 0;
+	float b0 = 0, b1 = 0, b2 = 0, a0 = 0, a1 = 0, a2 = 0;
 
-    switch (filterType) {
-    case FILTER_LPF:
-        b0 = (1 - cs) * 0.5f;
-        b1 = 1 - cs;
-        b2 = (1 - cs) * 0.5f;
-        a0 = 1 + alpha;
-        a1 = -2 * cs;
-        a2 = 1 - alpha;
-        break;
-    case FILTER_NOTCH:
-        b0 =  1;
-        b1 = -2 * cs;
-        b2 =  1;
-        a0 =  1 + alpha;
-        a1 = -2 * cs;
-        a2 =  1 - alpha;
-        break;
-    case FILTER_BPF:
-        b0 = alpha;
-        b1 = 0;
-        b2 = -alpha;
-        a0 = 1 + alpha;
-        a1 = -2 * cs;
-        a2 = 1 - alpha;
-        break;
-    }
+	switch (filterType) {
+	case FILTER_LPF:
+		b0 = (1 - cs) * 0.5f;
+		b1 = 1 - cs;
+		b2 = (1 - cs) * 0.5f;
+		a0 = 1 + alpha;
+		a1 = -2 * cs;
+		a2 = 1 - alpha;
+		break;
+	case FILTER_NOTCH:
+		b0 = 1;
+		b1 = -2 * cs;
+		b2 = 1;
+		a0 = 1 + alpha;
+		a1 = -2 * cs;
+		a2 = 1 - alpha;
+		break;
+	case FILTER_BPF:
+		b0 = alpha;
+		b1 = 0;
+		b2 = -alpha;
+		a0 = 1 + alpha;
+		a1 = -2 * cs;
+		a2 = 1 - alpha;
+		break;
+	}
 
-    // precompute the coefficients
-    filter->b0 = b0 / a0;
-    filter->b1 = b1 / a0;
-    filter->b2 = b2 / a0;
-    filter->a1 = a1 / a0;
-    filter->a2 = a2 / a0;
+	// precompute the coefficients
+	filter->b0 = b0 / a0;
+	filter->b1 = b1 / a0;
+	filter->b2 = b2 / a0;
+	filter->a1 = a1 / a0;
+	filter->a2 = a2 / a0;
 
-    // zero initial samples
-    filter->x1 = filter->x2 = 0;
-    filter->y1 = filter->y2 = 0;
+	// zero initial samples
+	filter->x1 = filter->x2 = 0;
+	filter->y1 = filter->y2 = 0;
 }
 
-FAST_CODE void biquadFilterUpdate(biquadFilter_t *filter, float filterFreq, uint32_t refreshRate, float Q, biquadFilterType_e filterType)
-{
-    // backup state
-    float x1 = filter->x1;
-    float x2 = filter->x2;
-    float y1 = filter->y1;
-    float y2 = filter->y2;
+FAST_CODE void biquadFilterUpdate(biquadFilter_t *filter, float filterFreq,
+		uint32_t refreshRate, float Q, biquadFilterType_e filterType) {
+	// backup state
+	float x1 = filter->x1;
+	float x2 = filter->x2;
+	float y1 = filter->y1;
+	float y2 = filter->y2;
 
-    biquadFilterInit(filter, filterFreq, refreshRate, Q, filterType);
+	biquadFilterInit(filter, filterFreq, refreshRate, Q, filterType);
 
-    // restore state
-    filter->x1 = x1;
-    filter->x2 = x2;
-    filter->y1 = y1;
-    filter->y2 = y2;
+	// restore state
+	filter->x1 = x1;
+	filter->x2 = x2;
+	filter->y1 = y1;
+	filter->y2 = y2;
 }
-
 
 /* Computes a biquadFilter_t filter on a sample (slightly less precise than df2 but works in dynamic mode) */
-FAST_CODE float biquadFilterApplyDF1(biquadFilter_t *filter, float input)
-{
-    /* compute result */
-    const float result = filter->b0 * input + filter->b1 * filter->x1 + filter->b2 * filter->x2 - filter->a1 * filter->y1 - filter->a2 * filter->y2;
+FAST_CODE float biquadFilterApplyDF1(biquadFilter_t *filter, float input) {
+	/* compute result */
+	const float result = filter->b0 * input + filter->b1 * filter->x1
+			+ filter->b2 * filter->x2 - filter->a1 * filter->y1 - filter->a2
+			* filter->y2;
 
-    /* shift x1 to x2, input to x1 */
-    filter->x2 = filter->x1;
-    filter->x1 = input;
+	/* shift x1 to x2, input to x1 */
+	filter->x2 = filter->x1;
+	filter->x1 = input;
 
-    /* shift y1 to y2, result to y1 */
-    filter->y2 = filter->y1;
-    filter->y1 = result;
+	/* shift y1 to y2, result to y1 */
+	filter->y2 = filter->y1;
+	filter->y1 = result;
 
-    return result;
+	return result;
 }
 
 /* Computes a biquadFilter_t filter in direct form 2 on a sample (higher precision but can't handle changes in coefficients */
-FAST_CODE float biquadFilterApply(biquadFilter_t *filter, float input)
-{
-    const float result = filter->b0 * input + filter->x1;
-    filter->x1 = filter->b1 * input - filter->a1 * result + filter->x2;
-    filter->x2 = filter->b2 * input - filter->a2 * result;
-    return result;
+FAST_CODE float biquadFilterApply(biquadFilter_t *filter, float input) {
+	const float result = filter->b0 * input + filter->x1;
+	filter->x1 = filter->b1 * input - filter->a1 * result + filter->x2;
+	filter->x2 = filter->b2 * input - filter->a2 * result;
+	return result;
 }
 
 /*
@@ -449,6 +467,4 @@ FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input) {
 } // fastKalmanUpdate
 
 #endif
-
-
 

@@ -33,6 +33,12 @@ typedef struct pt1Filter_s {
     float k;
 } pt1Filter_t;
 
+typedef struct ptnFilter_s {
+    float state[5];
+    float k;
+    uint8_t order;
+} ptnFilter_t;
+
 typedef struct slewFilter_s {
     float state;
     float slewLimit;
@@ -131,11 +137,11 @@ float fixedKKalmanUpdate(fastKalman_t *filter, float input);
 // not exactly correct, but very very close and much much faster
 #define filterGetNotchQApprox(centerFreq, cutoff)   ((float)(cutoff * centerFreq) / ((float)(centerFreq - cutoff) * (float)(centerFreq + cutoff)))
 
-void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT);
+void pt1FilterInit(pt1Filter_t *filter, uint16_t f_cut, float dT);
 float pt1FilterApply(pt1Filter_t *filter, float input);
 
-void ptnFilterInit(pt1Filter_t *filter, uint8_t order, uint8_t f_cut, float dT);
-float ptnFilterApply(pt1Filter_t *filter, float input);
+void ptnFilterInit(ptnFilter_t *filter, uint8_t order, uint16_t f_cut, float dT);
+float ptnFilterApply(ptnFilter_t *filter, float input);
 
 void slewFilterInit(slewFilter_t *filter, float slewLimit, float threshold);
 float slewFilterApply(slewFilter_t *filter, float input);

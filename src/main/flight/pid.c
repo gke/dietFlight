@@ -77,7 +77,7 @@ static FAST_RAM uint8_t hrzTiltExpertMode;
 static FAST_RAM float itermLimit;
 
 typedef union dtermFilterLpf_u {
-	pt1Filter_t pt1Filter[2];
+	ptnFilter_t ptnFilter[2];
 	firFilterDenoise_t denoisingFilter[2];
 } dtermFilterLpf_t;
 
@@ -211,21 +211,21 @@ void pidInitFilters(const pidProfile_t *pidProfile) {
 			> pidFrequencyNyquist)
 		dtermLpfApplyFn = nullFilterApply;
 	else {
-		dtermLpfApplyFn = (filterApplyFnPtr) pt1FilterApply;
+		dtermLpfApplyFn = (filterApplyFnPtr) ptnFilterApply;
 		for (int a = FD_ROLL; a <= FD_PITCH; a++) {
-			dtermFilterLpf[a] = &dtermFilterLpfUnion.pt1Filter[a];
-			pt1FilterInit(dtermFilterLpf[a], pidProfile->dterm_lpf_hz, targetdT);
+			dtermFilterLpf[a] = &dtermFilterLpfUnion.ptnFilter[a];
+			ptnFilterInit(dtermFilterLpf[a], 2, pidProfile->dterm_lpf_hz, targetdT);
 		}
 	}
 
-	static pt1Filter_t pt1FilterYaw;
+	static ptnFilter_t ptnFilterYaw;
 	if (pidProfile->yaw_lpf_hz == 0 || pidProfile->yaw_lpf_hz
 			> pidFrequencyNyquist)
 		ptermYawFilterApplyFn = nullFilterApply;
 	else {
-		ptermYawFilterApplyFn = (filterApplyFnPtr) pt1FilterApply;
-		ptermYawFilter = &pt1FilterYaw;
-		pt1FilterInit(ptermYawFilter, pidProfile->yaw_lpf_hz, targetdT);
+		ptermYawFilterApplyFn = (filterApplyFnPtr) ptnFilterApply;
+		ptermYawFilter = &ptnFilterYaw;
+		ptnFilterInit(ptermYawFilter, 1, pidProfile->yaw_lpf_hz, targetdT);
 	}
 } // pidInitFilters
 
@@ -379,6 +379,9 @@ void pidController(const pidProfile_t *pidProfile,
 			desiredRate = pidLevel(a, pidProfile, angleTrim, desiredRate);
 
 		Rate = gyro.gyroADCf[a];
+
+		// filter here
+
 		RateE = desiredRate - Rate;
 
 		RateP[a] = RateE * RateKp[a] * tpaFactor;

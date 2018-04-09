@@ -84,7 +84,7 @@ FAST_RAM gyro_t gyro;
 static FAST_RAM uint8_t gyroDebugMode;
 
 static FAST_RAM float accumulatedMeasurements[XYZ_AXIS_COUNT];
-static FAST_RAM float gyroPrevious[XYZ_AXIS_COUNT];
+static FAST_RAM float previousgyroADCf[XYZ_AXIS_COUNT];
 static FAST_RAM timeUs_t accumulatedMeasurementTimeUs;
 static FAST_RAM timeUs_t accumulationLastTimeSampledUs;
 
@@ -712,9 +712,9 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 
 			gyro.gyroADCf[axis] = gyroADCf;
 			// integrate using trapezium rule to avoid bias
-			accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
+			accumulatedMeasurements[axis] += 0.5f * (previousgyroADCf[axis]
 					+ gyroADCf) * sampleDeltaUs;
-			gyroPrevious[axis] = gyroADCf;
+			previousgyroADCf[axis] = gyroADCf;
 		}
 	}
 } // gyroUpdateSensor

@@ -327,7 +327,7 @@ void fixedKKalmanInit(fastKalman_t *filter, uint16_t f_cut, float dT) {
 
 	filter->x = 0.0f; // set initial value, can be zero if unknown
 	filter->lastX = 0.0f; // set initial value, can be zero if unknown
-	filter->k = a / 2; // "kalman" gain - half of RC coefficient
+	filter->k = a * 0.5f; // "kalman" gain - half of RC coefficient
 }
 
 FAST_CODE float fixedKKalmanUpdate(fastKalman_t *filter, float input) {
@@ -349,8 +349,7 @@ void InitializeAlphaBeta(float x_measured, float alpha, float beta, fastKalman_t
 } // InitializeAlphaBeta
 
 // near critically damped filter
-void createNearCriticalFilter(fastKalman_t* pab, float x_measured, float alpha)
-{
+void createNearCriticalFilter(fastKalman_t* pab, float x_measured, float alpha){
 	const float beta = 0.8f * (2.0f - alpha * alpha - 2.0f * sqrtf(1.0f - alpha * alpha)) / (alpha * alpha);
 
 	InitializeAlphaBeta(x_measured, alpha, beta, pab);

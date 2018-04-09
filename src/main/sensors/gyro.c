@@ -15,9 +15,7 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #define USE_OS_GYRO
-
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -127,7 +125,7 @@ STATIC_UNIT_TESTED gyroDev_t * const gyroDevPtr = &gyroSensor1.gyroDev;
 static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		uint16_t gyro_filter_q, uint16_t gyro_filter_r, uint16_t gyro_filter_p);
 static void
-		gyroInitFilterFixedKKalman(gyroSensor_t *gyroSensor, uint16_t lpfHz);
+gyroInitFilterFixedKKalman(gyroSensor_t *gyroSensor, uint16_t lpfHz);
 
 static void gyroInitSensorFilters(gyroSensor_t *gyroSensor);
 #define DEBUG_GYRO_CALIBRATION 3
@@ -415,7 +413,12 @@ bool gyroInit(void) {
 } // gyroInit
 
 void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
-	gyroSensor->softLpfFilterApplyFn = nullFilterApply;
+	gyroSensor->softLpfFilterApplyFn = &nullFilterApply;
+
+#if defined(USE_OS_GYRO) // lf filtering done in pid.c
+	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+		gyroSensor->softLpfFilterPtr[axis] = nullFilterApply;
+#else
 	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
 
 	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once samplingrate is known
@@ -445,6 +448,8 @@ void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
 			break;
 		}
 	}
+#endif
+
 } // gyroInitFilterLpf
 
 void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
@@ -467,7 +472,7 @@ static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
 #if defined(ROBERT)
 			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
-						gyro_filter_p, gyrodT);
+					gyro_filter_p, gyrodT);
 #else
 			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
 					gyro_filter_r, gyro_filter_p);
@@ -479,6 +484,7 @@ static void gyroInitFilterFixedKKalman(gyroSensor_t *gyroSensor, uint16_t lpfHz)
 	gyroSensor->fixedKKalmanApplyFn = nullFilterApply;
 	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
 	const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
+
 	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once sampling rate is known
 		gyroSensor->fixedKKalmanApplyFn = (filterApplyFnPtr) fixedKKalmanUpdate;
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
@@ -493,7 +499,7 @@ static void gyroInitSensorFilters(gyroSensor_t *gyroSensor) {
 	gyroInitFilterKalman(gyroSensor, gyroConfig()->gyro_filter_q,
 			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
 	gyroInitFilterFixedKKalman(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2);
-	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz);
+	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz); // gyro_soft_lpf_hz_2? gke
 } // gyroInitSensorFilters
 
 void gyroInitFilters(void) {
@@ -599,11 +605,11 @@ FAST_CODE int32_t SensorSlewLimit(int32_t * Old, int32_t New, int32_t Slew) {
 	Low = *Old - Slew;
 	High = *Old + Slew;
 	if (New < Low)
-		*Old = Low;
+	*Old = Low;
 	else if (New > High)
-			*Old = High;
-		else
-			*Old = New;
+	*Old = High;
+	else
+	*Old = New;
 	return (*Old);
 } // SensorSlewLimit
 
@@ -613,8 +619,8 @@ FAST_CODE int32_t gyroSlewLimiter(gyroSensor_t *gyroSensor, int axis) {
 
 	int32_t ret = (int32_t)gyroSensor->gyroDev.gyroADCRaw[axis];
 	if (gyroConfig()->checkOverflow)
-		// don't use the slew limiter if overflow checking is on
-		return ret;
+	// don't use the slew limiter if overflow checking is on
+	return ret;
 
 	return SensorSlewLimit(&BP[axis], ret, SlewLimitGyroClicks);;
 } // gyroSlewLimiter
@@ -644,71 +650,41 @@ FAST_CODE int32_t gyroNewtonianLimiter(gyroSensor_t *gyroSensor, int axis) {
 static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 		timeUs_t currentTimeUs) {
 #ifdef USE_DMA_SPI_DEVICE
-	if (!dmaSpiGyroDataReady)
-	return;
-	//dmaSpiGyroDataReady = 0;
+	if (dmaSpiGyroDataReady)
 #else
-	if (!gyroSensor->gyroDev.readFn(&gyroSensor->gyroDev))
-		return;
+	if (gyroSensor->gyroDev.readFn(&gyroSensor->gyroDev))
 #endif
-	gyroSensor->gyroDev.dataReady = false;
+	{
+		gyroSensor->gyroDev.dataReady = false;
 
-	if (isGyroSensorCalibrationComplete(gyroSensor)) {
-		// move 16-bit gyro data into 32-bit variables
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
-			gyroSensor->gyroDev.gyroADC[axis] = gyroNewtonianLimiter(
-					gyroSensor, axis) - gyroSensor->gyroDev.gyroZero[axis];
+		if (isGyroSensorCalibrationComplete(gyroSensor)) {
+			// move 16-bit gyro data into 32-bit variables
+			for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+				gyroSensor->gyroDev.gyroADC[axis] = gyroNewtonianLimiter(
+						gyroSensor, axis) - gyroSensor->gyroDev.gyroZero[axis];
 
-		alignSensors(gyroSensor->gyroDev.gyroADC, gyroSensor->gyroDev.gyroAlign);
-	} else {
-		performGyroCalibration(gyroSensor,
-				gyroConfig()->gyroMovementCalibrationThreshold);
-		// Reset gyro values to zero to prevent other code from using uncalibrated data
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
-			gyro.gyroADCf[axis] = 0.0f;
+			alignSensors(gyroSensor->gyroDev.gyroADC,
+					gyroSensor->gyroDev.gyroAlign);
+		} else {
+			performGyroCalibration(gyroSensor,
+					gyroConfig()->gyroMovementCalibrationThreshold);
+			// Reset gyro values to zero to prevent other code from using uncalibrated data
+			for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+				gyro.gyroADCf[axis] = 0.0f;
 
-		// still calibrating, so no need to further process gyro data
-		return;
-	}
-
-	const timeDelta_t sampleDeltaUs = currentTimeUs
-			- accumulationLastTimeSampledUs;
-	accumulationLastTimeSampledUs = currentTimeUs;
-	accumulatedMeasurementTimeUs += sampleDeltaUs;
-
-	if (gyroDebugMode == DEBUG_NONE) {
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-			// NOTE: this branch optimized for when there is no gyro debugging, ensure it is kept in step with non-optimized branch
-			float gyroADCf = gyroSensor->gyroDev.gyroADC[axis]
-					* gyroSensor->gyroDev.scale;
-
-			switch (gyroConfig()->gyro_stage2_filter_type) {
-			case STAGE2_FILTER_FAST_KALMAN:
-				gyroADCf = gyroSensor->fastKalmanApplyFn(
-						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
-				break;
-			case STAGE2_FILTER_FIXED_K_KALMAN:
-				gyroADCf = gyroSensor->fixedKKalmanApplyFn(
-						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
-				break;
-			default:
-				break;
-			} // switch
-
-#if !defined(USE_OS_GYRO) // do low rate filtering in pid.c
-			gyroADCf = gyroSensor->softLpfFilterApplyFn(
-					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-#endif
-			gyro.gyroADCf[axis] = gyroADCf;
-				// integrate using trapezium rule to avoid bias
-				accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
-						+ gyroADCf) * sampleDeltaUs;
-				gyroPrevious[axis] = gyroADCf;
-
+			// still calibrating, so no need to further process gyro data
+			return;
 		}
-	} else {
+
+		const timeDelta_t sampleDeltaUs = currentTimeUs
+				- accumulationLastTimeSampledUs;
+		accumulationLastTimeSampledUs = currentTimeUs;
+		accumulatedMeasurementTimeUs += sampleDeltaUs;
+
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-			DEBUG_SET(DEBUG_GYRO_RAW, axis, gyroSensor->gyroDev.gyroADCRaw[axis]);
+			if (gyroDebugMode != DEBUG_NONE) {
+				DEBUG_SET(DEBUG_GYRO_RAW, axis, gyroSensor->gyroDev.gyroADCRaw[axis]);
+			}
 			// scale gyro output to degrees per second
 			float gyroADCf = gyroSensor->gyroDev.gyroADC[axis]
 					* gyroSensor->gyroDev.scale;
@@ -725,18 +701,20 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 				break;
 			default:
 				break;
+			} // switch
+
+			if (gyroDebugMode != DEBUG_NONE) {
+				DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
 			}
-			DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
-#if !defined(USE_OS_GYRO) // do low rate filtering in pid.c
+
 			gyroADCf = gyroSensor->softLpfFilterApplyFn(
 					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-#endif
 
 			gyro.gyroADCf[axis] = gyroADCf;
-				// integrate using trapezium rule to avoid bias
-				accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
-						+ gyroADCf) * sampleDeltaUs;
-				gyroPrevious[axis] = gyroADCf;
+			// integrate using trapezium rule to avoid bias
+			accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis]
+					+ gyroADCf) * sampleDeltaUs;
+			gyroPrevious[axis] = gyroADCf;
 		}
 	}
 } // gyroUpdateSensor

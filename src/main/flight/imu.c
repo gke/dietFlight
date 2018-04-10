@@ -102,7 +102,7 @@ attitudeEulerAngles_t attitude = EULER_INITIALIZE;
 PG_REGISTER_WITH_RESET_TEMPLATE(imuConfig_t, imuConfig, PG_IMU_CONFIG, 0);
 
 PG_RESET_TEMPLATE(imuConfig_t, imuConfig,
-    .dcm_kp = 2500,                // 1.0 * 10000
+    .dcm_kp = 5000,                // 1.0 * 10000 TODO: gke increase was 2500?
     .dcm_ki = 0,                   // 0.003 * 10000
     .small_angle = 25,
     .accDeadband = {.xy = 40, .z= 40},

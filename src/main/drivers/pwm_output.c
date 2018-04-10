@@ -165,19 +165,21 @@ static uint8_t loadDmaBufferProshot(uint32_t *dmaBuffer, int stride, uint16_t pa
 }
 #endif
 
-void pwmWriteMotor(uint8_t index, float value)
-{
-    pwmWrite(index, value);
-}
+void pwmWriteMotor(uint8_t index, float value) {
+	// TODO: gke more sophisticated filter needed at around 70Hz?
+	static float prevValue[MAX_SUPPORTED_MOTORS] = { 0.0f, };
+
+	prevValue[index] = (value + prevValue[index]) * 0.5f;
+    pwmWrite(index, prevValue[index]);
+
+} // pwmWriteMotor
 
 void pwmShutdownPulsesForAllMotors(uint8_t motorCount)
 {
-    for (int index = 0; index < motorCount; index++) {
+    for (int index = 0; index < motorCount; index++)
         // Set the compare register to 0, which stops the output pulsing if the timer overflows
-        if (motors[index].channel.ccr) {
+        if (motors[index].channel.ccr)
             *motors[index].channel.ccr = 0;
-        }
-    }
 }
 
 void pwmDisableMotors(void)

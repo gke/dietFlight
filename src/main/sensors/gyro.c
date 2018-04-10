@@ -15,7 +15,7 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define USE_OS_GYRO
+//#define USE_OS_LPF
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -383,9 +383,8 @@ static bool gyroInitSensor(gyroSensor_t *gyroSensor) {
 			gyroConfig()->gyro_use_32khz);
 	gyroSensor->gyroDev.lpf = gyroConfig()->gyro_lpf;
 	gyroSensor->gyroDev.initFn(&gyroSensor->gyroDev);
-	if (gyroConfig()->gyro_align != ALIGN_DEFAULT) {
+	if (gyroConfig()->gyro_align != ALIGN_DEFAULT)
 		gyroSensor->gyroDev.gyroAlign = gyroConfig()->gyro_align;
-	}
 
 	gyroInitSensorFilters(gyroSensor);
 #ifdef USE_GYRO_DATA_ANALYSE
@@ -413,12 +412,7 @@ bool gyroInit(void) {
 } // gyroInit
 
 void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
-	gyroSensor->softLpfFilterApplyFn = &nullFilterApply;
 
-#if defined(USE_OS_GYRO) // lf filtering done in pid.c
-	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
-		gyroSensor->softLpfFilterPtr[axis] = nullFilterApply;
-#else
 	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
 
 	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once samplingrate is known
@@ -448,8 +442,6 @@ void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
 			break;
 		}
 	}
-#endif
-
 } // gyroInitFilterLpf
 
 void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
@@ -461,6 +453,7 @@ void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
 
 static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		uint16_t gyro_filter_q, uint16_t gyro_filter_r, uint16_t gyro_filter_p) {
+
 	gyroSensor->fastKalmanApplyFn = nullFilterApply;
 #if defined(ROBERT)
 	const float gyrodT = (float) gyro.targetLooptime * 0.000001f;
@@ -499,7 +492,9 @@ static void gyroInitSensorFilters(gyroSensor_t *gyroSensor) {
 	gyroInitFilterKalman(gyroSensor, gyroConfig()->gyro_filter_q,
 			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
 	gyroInitFilterFixedKKalman(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2);
+#if defined(USE_OS_LPF)
 	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz); // gyro_soft_lpf_hz_2? gke
+#endif
 } // gyroInitSensorFilters
 
 void gyroInitFilters(void) {
@@ -706,10 +701,10 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 			if (gyroDebugMode != DEBUG_NONE) {
 				DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
 			}
-
+#if defined(USE_OS_LPF)
 			gyroADCf = gyroSensor->softLpfFilterApplyFn(
 					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-
+#endif
 			gyro.gyroADCf[axis] = gyroADCf;
 			// integrate using trapezium rule to avoid bias
 			accumulatedMeasurements[axis] += 0.5f * (previousgyroADCf[axis]

@@ -52,6 +52,7 @@
 #include "sensors/acceleration.h"
 
 #define USE_PAVEL // gke
+
 FAST_RAM uint32_t targetPidLooptime;
 
 const angle_index_t rcAliasToAngleIndexMap[] = { AI_ROLL, AI_PITCH };
@@ -69,10 +70,10 @@ static FAST_RAM float RateKp[3], RateKi[3], RateKd[3];
 static FAST_RAM float maxVel[3];
 static FAST_RAM float relaxFactor;
 static FAST_RAM float dtermSetpointWeight;
-static FAST_RAM float AngleKp, hrzGain, hrzTransition, hrzCutoffDegrees,
-		hrzRatio;
+static FAST_RAM float AngleKp, hGain, hTransition, hCutoffDegrees,
+		hRatio;
 static FAST_RAM float ITermWindupPointInv;
-static FAST_RAM uint8_t hrzTiltExpertMode;
+static FAST_RAM uint8_t hTiltExpertMode;
 static FAST_RAM float itermLimit;
 
 static FAST_RAM float targetdT;
@@ -191,7 +192,7 @@ void pidInitFilters(const pidProfile_t *pidProfile) {
 
 	const float coeffsPavel[] = { 0.375f, 0.5f, -0.5f, -0.75, 0.125f, 0.25f };
 
-	for (int a = FD_ROLL; a <= FD_YAW; a++) // inc yaw for later gke
+	for (int a = FD_ROLL; a <= FD_YAW; a++) // TODO: inc yaw for later gke
 #if defined(USE_PAVEL)
 		firFilterInit(&dFIR[a], dFIRBuff[a].b, 6, coeffsPavel);
 #else
@@ -235,11 +236,11 @@ void pidInitConfig(const pidProfile_t *pidProfile) {
 	dtermSetpointWeight = pidProfile->dtermSetpointWeight * 0.01f; // %
 	relaxFactor = 1.0f / (pidProfile->setpointRelaxRatio * 0.01f);
 	AngleKp = pidProfile->pid[PID_LEVEL].P * 0.1f;
-	hrzGain = pidProfile->pid[PID_LEVEL].I * 0.1f;
-	hrzTransition = (float) pidProfile->pid[PID_LEVEL].D;
-	hrzTiltExpertMode = pidProfile->horizon_tilt_expert_mode;
-	hrzCutoffDegrees = (175.0f - pidProfile->horizon_tilt_effect) * 1.8f;
-	hrzRatio = (100.0f - pidProfile->horizon_tilt_effect) * 0.01f;
+	hGain = pidProfile->pid[PID_LEVEL].I * 0.1f;
+	hTransition = (float) pidProfile->pid[PID_LEVEL].D;
+	hTiltExpertMode = pidProfile->horizon_tilt_expert_mode;
+	hCutoffDegrees = (175.0f - pidProfile->horizon_tilt_effect) * 1.8f;
+	hRatio = (100.0f - pidProfile->horizon_tilt_effect) * 0.01f;
 	maxVel[FD_ROLL] = maxVel[FD_PITCH] = pidProfile->rateAccelLimit * 100.0f
 			* targetdT;
 	maxVel[FD_YAW] = pidProfile->yawRateAccelLimit * 100.0f * targetdT;
@@ -265,20 +266,20 @@ void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex) {
 } // pidCopyProfile
 
 static float calcHorizonLevelStrength(void) {
-	float currInclination, levelStrength, sensitFact, tiltRatio;
+	float maxAngle, levelStrength, sensitFact, tiltRatio;
 
 	levelStrength = 1.0f - MAX(getRcDeflectionAbs(FD_ROLL),
 			getRcDeflectionAbs(FD_PITCH));
 
-	currInclination = MAX(ABS(attitude.values.roll), ABS(
+	maxAngle = MAX(ABS(attitude.values.roll), ABS(
 					attitude.values.pitch)) * 0.1f;
 
-	if (hrzRatio < 1.0f) { // if hrzTiltEffect > 0
-		tiltRatio = (180.0f - currInclination) / 180.0f * (1.0f - hrzRatio)
-				+ hrzRatio;
-		sensitFact = hrzTransition * tiltRatio;
+	if (hRatio < 1.0f) { // if hTiltEffect > 0
+		tiltRatio = (180.0f - maxAngle) / 180.0f * (1.0f - hRatio)
+				+ hRatio;
+		sensitFact = hTransition * tiltRatio;
 	} else
-		sensitFact = hrzTransition;
+		sensitFact = hTransition;
 
 	levelStrength = (sensitFact <= 0.0f) ? 0.0f : ((levelStrength - 1.0f)
 			* (100.0f / sensitFact)) + 1.0f;
@@ -301,7 +302,7 @@ static float pidLevel(int a, const pidProfile_t *pidProfile,
 		desiredRate = AngleE * AngleKp;
 	else {
 		levelStrength = calcHorizonLevelStrength();
-		desiredRate = desiredRate + (AngleE * hrzGain * levelStrength);
+		desiredRate = desiredRate + (AngleE * hGain * levelStrength);
 	}
 	return desiredRate;
 } // pidLevel

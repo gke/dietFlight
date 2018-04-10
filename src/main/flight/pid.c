@@ -117,15 +117,15 @@ void resetPidProfile(pidProfile_t *pidProfile) {
 
 			.pidSumLimit = PIDSUM_LIMIT,
 			.pidSumLimitYaw = PIDSUM_LIMIT_YAW,
-			.yaw_lpf_hz = 0,
+			.yaw_lpf_hz = 20, // was 0 gke
 			// notch filters not used gke
 			.dterm_lpf_hz = 100, // filtering ON by default
-			.dterm_notch_hz = 260,
-			.dterm_notch_cutoff = 160,
+			.dterm_notch_hz = 0,  // unused gke
+			.dterm_notch_cutoff = 0, // unused gke
 			.dterm_filter_type = FILTER_PT1,
-			.dterm_filter_style = KD_FILTER_CLASSIC,
+			.dterm_filter_style = KD_FILTER_CLASSIC, // yields ABG for ROBERT gke
 			.itermWindupPointPercent = 50,
-			.vbatPidCompensation = 0,
+			.vbatPidCompensation = 0, // unused
 			.pidAtMinThrottle = PID_STABILISATION_ON,
 			.levelAngleLimit = 55,
 			.setpointRelaxRatio = 100,
@@ -134,7 +134,7 @@ void resetPidProfile(pidProfile_t *pidProfile) {
 			.rateAccelLimit = 0,
 			.itermThrottleThreshold = 350,
 			.itermAcceleratorGain = 1000,
-			// crash stuff not used
+			// crash stuff not used gke
 			.crash_time = 500, // ms
 			.crash_delay = 0, // ms
 			.crash_recovery_angle = 10, // degrees
@@ -207,10 +207,12 @@ void pidInitFilters(const pidProfile_t *pidProfile) {
 		rateLpfApplyFn = nullFilterApply;
 	else {
 		rateLpfApplyFn = (filterApplyFnPtr) ptnFilterApply;
-		for (int a = FD_ROLL; a <= FD_YAW; a++)
+		for (int a = FD_ROLL; a <= FD_PITCH; a++)
 			// gke should have separate cutoff from dterm
 			ptnFilterInit(&rateFilterLpf[a], 2, gyroConfig()->gyro_soft_lpf_hz,
 					targetdT);
+		ptnFilterInit(&rateFilterLpf[FD_YAW], 2, pidProfile->yaw_lpf_hz,
+							targetdT);
 	}
 
 	static ptnFilter_t dtermFilterLpf[2];
@@ -366,7 +368,7 @@ void pidController(const pidProfile_t *pidProfile,
 
 	for (int a = FD_ROLL; a <= FD_YAW; a++) {
 		desiredRate = getSetpointRate(a);
-		if (maxVel[a] != 0.0f)
+		if (maxVel[a] <= 0.0f)
 			desiredRate = limitAcc(a, desiredRate);
 
 		if ((FLIGHT_MODE(ANGLE_MODE) || FLIGHT_MODE(HORIZON_MODE)) && a != YAW)
@@ -384,7 +386,7 @@ void pidController(const pidProfile_t *pidProfile,
 			RateI[a] = ITermNew;
 
 		if (a == FD_YAW)
-			RateOut[a] = RateP[a] + RateI[a];
+			RateOut[a] = RateP[a] + RateI[a]; // TODO: add dTerm? gke
 		else {
 			RateD[a] = RateKd[a] * rateDerivative(a, RateE, dTR) * tpaFactor;
 			RateOut[a] = RateP[a] + RateI[a] + RateD[a];

@@ -63,7 +63,7 @@ void ptnFilterInit(ptnFilter_t *filter, uint8_t order, uint16_t f_cut, float dT)
 	for (n = 1; n <= filter->order; n++)
 		filter->state[n] = 0.0f;
 
-	Adj_f_cut = (float)f_cut * ScaleF[filter->order];
+	Adj_f_cut = (float)f_cut * ScaleF[filter->order - 1];
 
 	filter->k = dT / ((1.0f / (2.0f * M_PI_FLOAT * Adj_f_cut)) + dT);
 
@@ -78,7 +78,7 @@ int n;
 		filter->state[n] += (filter->state[n - 1] - filter->state[n])
 				* filter->k;
 
-	return filter->state[n];
+	return filter->state[filter->order];
 } // ptnFilterApply
 
 

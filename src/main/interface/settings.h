@@ -78,9 +78,6 @@ typedef enum {
     TABLE_GYRO_OVERFLOW_CHECK,
 #endif
     TABLE_RATES_TYPE,
-#ifdef USE_OVERCLOCK
-    TABLE_OVERCLOCK,
-#endif
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
     TABLE_STAGE2_FILTER_TYPE,
 #endif // lookup only available if both are enabled

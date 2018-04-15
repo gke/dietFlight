@@ -15,7 +15,6 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -146,8 +145,8 @@ PG_RESET_TEMPLATE(gyroConfig_t, gyroConfig,
 		.gyro_soft_notch_hz_2 = 0, // not used gke
 		.gyro_soft_notch_cutoff_2 = 0, // not used gke
 		.checkOverflow = GYRO_OVERFLOW_CHECK_YAW,
-		.gyro_soft_lpf_hz_2 = 100, // was 0 Fujin/FIXED KF and BiQuad gke
-		.gyro_filter_q = 400, // should be around 2000 for 8KHz for Kalyn KF  gke
+		.gyro_soft_lpf_hz_2 = 0, // Fujin/FIXED KF and PTn forced to Nyquist if zero gke
+		.gyro_filter_q = 2000, // was 800 should be around 2000 for 8KHz for Kalyn KF  gke
 		.gyro_filter_r = 88,
 		.gyro_filter_p = 0,
 		.gyro_stage2_filter_type = STAGE2_FILTER_FIXED_K_KALMAN,
@@ -411,25 +410,6 @@ bool gyroInit(void) {
 	return gyroInitSensor(&gyroSensor1);
 } // gyroInit
 
-void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
-
-	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
-
-	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once samplingrate is known
-
-		gyroSensor->softLpfFilterApplyFn
-				= (filterApplyFnPtr) ptnFilterApply;
-		const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-			gyroSensor->softLpfFilterPtr[axis]
-					= (filter_t *) &gyroSensor->softLpfFilter.gyroFilterPtnState[axis];
-			ptnFilterInit(
-					&gyroSensor->softLpfFilter.gyroFilterPtnState[axis],
-					2, lpfHz, gyroDt);
-		}
-	}
-} // gyroInitFilterLpf
-
 void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
 
 	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
@@ -437,29 +417,48 @@ void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
 
 } // gyroInitNewtonianLimiter
 
+void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
+
+	const float gyroFrequencyNyquist = (1.0e6f / gyro.targetLooptime) * 0.5f;
+
+	if ((lpfHz == 0) || (lpfHz > gyroFrequencyNyquist))
+		lpfHz = gyroFrequencyNyquist;
+
+	gyroSensor->softLpfFilterApplyFn = (filterApplyFnPtr) ptnFilterApply;
+	const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
+	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+		gyroSensor->softLpfFilterPtr[axis]
+				= (filter_t *) &gyroSensor->softLpfFilter.gyroFilterPtnState[axis];
+		ptnFilterInit(&gyroSensor->softLpfFilter.gyroFilterPtnState[axis], 2,
+				lpfHz, gyroDt);
+	}
+
+} // gyroInitFilterLpf
+
 static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		uint16_t gyro_filter_q, uint16_t gyro_filter_r, uint16_t gyro_filter_p) {
-
-	gyroSensor->fastKalmanApplyFn = nullFilterApply;
 
 	if (gyro_filter_q != 0 && gyro_filter_r != 0) {
 		gyroSensor->fastKalmanApplyFn = (filterApplyFnPtr) fastKalmanUpdate;
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
 			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
 					gyro_filter_r, gyro_filter_p);
-	}
+	} else
+		gyroSensor->fastKalmanApplyFn = nullFilterApply;
 } // gyroInitFilterKalman
 
 static void gyroInitFilterFixedKKalman(gyroSensor_t *gyroSensor, uint16_t lpfHz) {
-	gyroSensor->fixedKKalmanApplyFn = nullFilterApply;
-	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
-	const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
 
-	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once sampling rate is known
-		gyroSensor->fixedKKalmanApplyFn = (filterApplyFnPtr) fixedKKalmanUpdate;
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
-			fixedKKalmanInit(&gyroSensor->fastKalman[axis], lpfHz, gyroDt);
-	}
+	const float gyroFrequencyNyquist = (1.0e6f / gyro.targetLooptime) * 0.5f;
+
+	if ((lpfHz == 0) || (lpfHz > gyroFrequencyNyquist))
+		lpfHz = gyroFrequencyNyquist;
+
+	gyroSensor->fixedKKalmanApplyFn = (filterApplyFnPtr) fixedKKalmanUpdate;
+	const float gyroDt = (float) gyro.targetLooptime * 1.0e-6f;
+	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+		fixedKKalmanInit(&gyroSensor->fastKalman[axis], lpfHz, gyroDt);
+
 } // gyroInitFilterFixedKKalman
 
 
@@ -477,11 +476,13 @@ void gyroInitFilters(void) {
 	gyroInitSensorFilters(&gyroSensor1);
 } // gyroInitFilters
 
-FAST_CODE bool isGyroSensorCalibrationComplete(const gyroSensor_t *gyroSensor) {
+FAST_CODE
+bool isGyroSensorCalibrationComplete(const gyroSensor_t *gyroSensor) {
 	return gyroSensor->calibration.calibratingG == 0;
 } // isGyroSensorCalibrationComplete
 
-FAST_CODE bool isGyroCalibrationComplete(void) {
+FAST_CODE
+bool isGyroCalibrationComplete(void) {
 	return isGyroSensorCalibrationComplete(&gyroSensor1);
 } // isGyroCalibrationComplete
 
@@ -602,7 +603,8 @@ FAST_CODE int32_t gyroNewtonianLimiter(gyroSensor_t *gyroSensor, int axis) {
 
 #else
 
-FAST_CODE int32_t gyroNewtonianLimiter(gyroSensor_t *gyroSensor, int axis) {
+FAST_CODE
+int32_t gyroNewtonianLimiter(gyroSensor_t *gyroSensor, int axis) {
 	// can be generalised to filtering max acceptable physical change - slewlimit
 	// this version specific to gyro wraparound
 	int32_t ret = (int32_t) gyroSensor->gyroDev.gyroADCRaw[axis]; // extend to 32bits
@@ -653,22 +655,25 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 		accumulatedMeasurementTimeUs += sampleDeltaUs;
 
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-			if (gyroDebugMode != DEBUG_NONE) {
+			if (gyroDebugMode != DEBUG_NONE)
 				DEBUG_SET(DEBUG_GYRO_RAW, axis, gyroSensor->gyroDev.gyroADCRaw[axis]);
-			}
+
 			// scale gyro output to degrees per second
 			float gyroADCf = gyroSensor->gyroDev.gyroADC[axis]
 					* gyroSensor->gyroDev.scale;
 
 			switch (gyroConfig()->gyro_stage2_filter_type) {
-			case STAGE2_FILTER_FAST_KALMAN:
-				// apply fast kalman
+			case STAGE2_FILTER_FAST_KALMAN: // Kalyn fast KF
 				gyroADCf = gyroSensor->fastKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
 				break;
-			case STAGE2_FILTER_FIXED_K_KALMAN: // Fujin gke
+			case STAGE2_FILTER_FIXED_K_KALMAN: // Fujin Fixed K KF
 				gyroADCf = gyroSensor->fixedKKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
+				break;
+			case STAGE2_FILTER_PTn: // Simple order n filter
+				gyroADCf = gyroSensor->softLpfFilterApplyFn(
+						gyroSensor->softLpfFilterPtr[axis], gyroADCf);
 				break;
 			default:
 				break;
@@ -677,11 +682,8 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 			if (gyroDebugMode != DEBUG_NONE)
 				DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
 
-			gyroADCf = gyroSensor->softLpfFilterApplyFn(
-								gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-
 			gyro.gyroADCf[axis] = gyroADCf;
-			// integrate using trapezium rule to avoid bias
+			// trapezoidal integration to avoid bias
 			accumulatedMeasurements[axis] += 0.5f * (previousgyroADCf[axis]
 					+ gyroADCf) * sampleDeltaUs;
 			previousgyroADCf[axis] = gyroADCf;
@@ -701,7 +703,8 @@ FAST_CODE void gyroDmaSpiStartRead(void) {
 } // gyroDmaSpiStartRead
 #endif
 
-FAST_CODE void gyroUpdate(timeUs_t currentTimeUs) {
+FAST_CODE
+void gyroUpdate(timeUs_t currentTimeUs) {
 	//called by scheduler
 	gyroUpdateSensor(&gyroSensor1, currentTimeUs);
 } // gyroUpdate

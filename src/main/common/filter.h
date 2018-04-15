@@ -91,7 +91,8 @@ typedef enum {
     STAGE2_FILTER_NONE = 0,
     STAGE2_FILTER_BIQUAD_RC_FIR2,
     STAGE2_FILTER_FAST_KALMAN,
-    STAGE2_FILTER_FIXED_K_KALMAN
+    STAGE2_FILTER_FIXED_K_KALMAN,
+    STAGE2_FILTER_PTn
 } stage2FilterType_e;
 
 typedef struct firFilter_s {

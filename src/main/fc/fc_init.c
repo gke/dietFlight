@@ -391,10 +391,6 @@ void init(void)
     }
 #endif
 
-#ifdef USE_OVERCLOCK
-    OverclockRebootIfNecessary(systemConfig()->cpu_overclock);
-#endif
-
     delay(100);
 
     timerInit();  // timer must be initialized before any channel is allocated

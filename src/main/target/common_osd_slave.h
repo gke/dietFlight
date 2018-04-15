@@ -28,22 +28,10 @@
 //#define SCHEDULER_DEBUG // define this to use scheduler debug[] values. Undefined by default for performance reasons
 #define DEBUG_MODE DEBUG_NONE // change this to change initial debug mode
 
-#define I2C1_OVERCLOCK true
-#define I2C2_OVERCLOCK true
-
 #define MAX_PROFILE_COUNT 0
 
 #ifdef STM32F3
 #define MINIMAL_CLI
-#endif
-
-#ifdef STM32F4
-#define I2C3_OVERCLOCK true
-#endif
-
-#ifdef STM32F7
-#define I2C3_OVERCLOCK true
-#define I2C4_OVERCLOCK true
 #endif
 
 #if defined(STM32F4) || defined(STM32F7)

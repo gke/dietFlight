@@ -426,36 +426,13 @@ void max7456Init(const max7456Config_t *max7456Config, const vcdProfile_t *pVcdP
 
     max7456Send(MAX7456ADD_CMAL, (1 << 6)); // CA[8] bit
 
-    if (max7456Send(MAX7456ADD_CMAL|MAX7456ADD_READ, 0xff) & (1 << 6)) {
+    if (max7456Send(MAX7456ADD_CMAL|MAX7456ADD_READ, 0xff) & (1 << 6))
         max7456DeviceType = MAX7456_DEVICE_TYPE_AT;
-    } else {
+    else
         max7456DeviceType = MAX7456_DEVICE_TYPE_MAX;
-    }
 
-#if defined(USE_OVERCLOCK)
-    // Determine SPI clock divisor based on config and the device type.
-
-    switch (max7456Config->clockConfig) {
-    case MAX7456_CLOCK_CONFIG_HALF:
-        max7456SpiClock = MAX7456_SPI_CLK * 2;
-        break;
-
-    case MAX7456_CLOCK_CONFIG_OC:
-        max7456SpiClock = (cpuOverclock && (max7456DeviceType == MAX7456_DEVICE_TYPE_MAX)) ? MAX7456_SPI_CLK * 2 : MAX7456_SPI_CLK;
-        break;
-
-    case MAX7456_CLOCK_CONFIG_FULL:
-        max7456SpiClock = MAX7456_SPI_CLK;
-        break;
-    }
-
-    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_OVERCLOCK, cpuOverclock);
-    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_DEVTYPE, max7456DeviceType);
-    DEBUG_SET(DEBUG_MAX7456_SPICLOCK, DEBUG_MAX7456_SPICLOCK_DIVISOR, max7456SpiClock);
-#else
     UNUSED(max7456Config);
     UNUSED(cpuOverclock);
-#endif
 
     spiSetDivisor(MAX7456_SPI_INSTANCE, max7456SpiClock);
 

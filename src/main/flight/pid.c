@@ -123,7 +123,7 @@ void resetPidProfile(pidProfile_t *pidProfile) {
 			.dterm_notch_hz = 0,  // unused gke
 			.dterm_notch_cutoff = 0, // unused gke
 			.dterm_filter_type = FILTER_PT1,
-			.dterm_filter_style = KD_FILTER_CLASSIC, // yields ABG for ROBERT gke
+			.dterm_filter_style = KD_FILTER_CLASSIC,
 			.itermWindupPointPercent = 50,
 			.vbatPidCompensation = 0, // unused
 			.pidAtMinThrottle = PID_STABILISATION_ON,

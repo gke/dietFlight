@@ -303,7 +303,7 @@ void firFilterDenoiseInit(firFilterDenoise_t *filter, uint8_t gyroSoftLpfHz,
 			MAX_FIR_DENOISE_WINDOW_SIZE);
 } // firFilterDenoiseInit
 
-// prototype function for denoising of signal by dynamic moving average. Mainly for test purposes
+// prototype function for de-noising of signal by dynamic moving average. Mainly for test purposes
 float firFilterDenoiseUpdate(firFilterDenoise_t *filter, float input) {
 	filter->state[filter->index] = input;
 	filter->movingSum += filter->state[filter->index++];
@@ -338,105 +338,6 @@ FAST_CODE float fixedKKalmanUpdate(fastKalman_t *filter, float input) {
 } //fixedKKalmanInit
 
 
-#if defined(ROBERT)
-
-void InitializeAlphaBeta(float x_measured, float alpha, float beta, fastKalman_t* pab) {
-	pab->xk_1 = x_measured;
-	pab->vk_1 = 0;
-	pab->a = alpha;
-	pab->b = beta;
-	pab->g = 0.0f;
-} // InitializeAlphaBeta
-
-// near critically damped filter
-void createNearCriticalFilter(fastKalman_t* pab, float x_measured, float alpha){
-	const float beta = 0.8f * (2.0f - alpha * alpha - 2.0f * sqrtf(1.0f - alpha * alpha)) / (alpha * alpha);
-
-	InitializeAlphaBeta(x_measured, alpha, beta, pab);
-	pab->g = pab->b * pab->b / (pab->a * 2.0f);
-} // createNearCriticalFilter
-
-void createUnderDampedFilter(fastKalman_t* pab, float x_measured, float alpha) {
-	const float beta = alpha * alpha / (2.0f - alpha); /*  standard, underdamped beta value */
-
-	InitializeAlphaBeta(x_measured, alpha, beta, pab);
-	pab->g = pab->b * pab->b / (pab->a * 2.0f);
-} // createUnderDampedFilter
-
-// Fast two-state Kalman
-void fastKalmanInit(fastKalman_t *filter, float q, float p, float dt) {
-	(void) p;
-	const float Q = q * 0.001f; // add multiplier to make tuning easier
-	//    const float R = r * 0.001f;    // add multiplier to make tuning easier
-	//    const float ALPHA = 0.85;
-
-	createNearCriticalFilter(filter, 0.0f, Q);
-	//    calculateAlphaBetaGamma(dt, R, Q, filter);
-	//    createUnderDampedFilter(filter, 0,  ALPHA);
-	//    peter_nachtwey(filter);
-
-	filter->dt = dt;
-	filter->dt2 = dt * dt;
-	filter->xk_1 = 0;
-} // fastKalmanInit
-
-//FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input)
-//{
-//    // project the state ahead using acceleration
-//    filter->x += (filter->x - filter->lastX);
-//
-//    // update last state
-//    filter->lastX = filter->x;
-//
-//    // prediction update
-//    filter->p = filter->p + filter->q;
-//
-//    // measurement update
-//    filter->k = filter->p / (filter->p + filter->r);
-//    filter->x += filter->k * (input - filter->x);
-//    filter->p = (1.0f - filter->k) * filter->p;
-//
-//    return filter->x;
-//} fastKalmanUpdate
-
-FAST_CODE float fastKalmanUpdate(fastKalman_t *pab, float input) {
-	float xk_1 = pab->xk_1;
-	float vk_1 = pab->vk_1;
-	float ak_1 = pab->ak_1;
-	float alpha = pab->a;
-	float beta = pab->b;
-	float gamma = pab->g;
-
-	//    float xk;   // current system state (ie: position)
-	//    float vk;   // derivative of system state (ie: velocity)
-	float rk; // residual error
-
-	// update our (estimated) state 'x' from the system (ie pos = pos + vel (last).dt)
-	xk_1 += pab->dt * vk_1 + 0.5f * pab->dt2 * ak_1;
-	// update (estimated) velocity
-	//    vk_1 += pab->dt * ak_1;
-	// what is our residual error (mesured - estimated)
-	rk = input - xk_1;
-	// update our estimates given the residual error.
-	xk_1 += alpha * rk;
-	vk_1 += beta / pab->dt * rk;
-	if (gamma)
-	{
-		ak_1 = ak_1 + gamma / (2.0f * pab->dt2) * rk;
-	}
-
-	//finished!
-
-	//now all our "currents" become our "olds" for next time
-	pab->vk_1 = vk_1;
-	pab->xk_1 = xk_1;
-	pab->ak_1 = ak_1;
-
-	return xk_1;
-} // fastKalmanUpdate
-
-#else
-
 // Fast two-state Kalman
 void fastKalmanInit(fastKalman_t *filter, float q, float r, float p) {
 	filter->q = q * 0.000001f; // add multiplier to make tuning easier
@@ -465,5 +366,4 @@ FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input) {
 	return filter->x;
 } // fastKalmanUpdate
 
-#endif
 

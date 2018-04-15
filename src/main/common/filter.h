@@ -66,13 +66,6 @@ typedef struct fastKalman_s {
     float k;       // kalman gain
     float x;       // state
     float lastX;   // previous state
-#if defined(ROBERT)
-    float ak_1;
-    float xk_1;
-    float vk_1;
-    float a, b, g;
-    float dt, dt2;
-#endif
 } fastKalman_t;
 
 typedef enum {
@@ -124,11 +117,7 @@ float filterGetNotchQ(uint16_t centerFreq, uint16_t cutoff);
 
 void biquadRCFIR2FilterInit(biquadFilter_t *filter, uint16_t f_cut, float dT);
 
-#if defined(ROBERT)
-void fastKalmanInit(fastKalman_t *filter, float q, float p, float dT);
-#else
 void fastKalmanInit(fastKalman_t *filter, float q, float r, float p);
-#endif
 float fastKalmanUpdate(fastKalman_t *filter, float input);
 
 void fixedKKalmanInit(fastKalman_t *filter, uint16_t f_cut, float dT);

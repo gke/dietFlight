@@ -15,7 +15,6 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define USE_OS_LPF
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -99,6 +98,7 @@ bool firstArmingCalibrationWasStarted = false;
 typedef union gyroSoftFilter_u {
 	biquadFilter_t gyroFilterLpfState[XYZ_AXIS_COUNT];
 	pt1Filter_t gyroFilterPt1State[XYZ_AXIS_COUNT];
+	ptnFilter_t gyroFilterPtnState[XYZ_AXIS_COUNT];
 	firFilterDenoise_t gyroDenoiseState[XYZ_AXIS_COUNT];
 } gyroSoftLpfFilter_t;
 
@@ -136,21 +136,21 @@ PG_RESET_TEMPLATE(gyroConfig_t, gyroConfig,
 		.gyroMovementCalibrationThreshold = 48,
 		.gyro_sync_denom = 1, // GYRO_SYNC_DENOM_DEFAULT,
 		.gyro_lpf = GYRO_LPF_NONE,
-		.gyro_soft_lpf_type = FILTER_PT1, // should be variable gke
+		.gyro_soft_lpf_type = FILTER_PT1, // should PTn gke
 		.gyro_soft_lpf_hz = 100, // gke
 		.gyro_high_fsr = false,
 		.gyro_use_32khz = false,
 		.gyro_to_use = 0,
-		.gyro_soft_notch_hz_1 = 0,
-		.gyro_soft_notch_cutoff_1 = 0,
-		.gyro_soft_notch_hz_2 = 0,
-		.gyro_soft_notch_cutoff_2 = 0,
+		.gyro_soft_notch_hz_1 = 0, // not used gke
+		.gyro_soft_notch_cutoff_1 = 0, // not used gke
+		.gyro_soft_notch_hz_2 = 0, // not used gke
+		.gyro_soft_notch_cutoff_2 = 0, // not used gke
 		.checkOverflow = GYRO_OVERFLOW_CHECK_YAW,
-		.gyro_soft_lpf_hz_2 = 0, // Kalman and BiQuad gke
-		.gyro_filter_q = 400,
+		.gyro_soft_lpf_hz_2 = 100, // was 0 Fujin/FIXED KF and BiQuad gke
+		.gyro_filter_q = 400, // should be around 2000 for 8KHz for Kalyn KF  gke
 		.gyro_filter_r = 88,
 		.gyro_filter_p = 0,
-		.gyro_stage2_filter_type = STAGE2_FILTER_FAST_KALMAN,
+		.gyro_stage2_filter_type = STAGE2_FILTER_FIXED_K_KALMAN,
 		.gyro_offset_yaw = 0,
 );
 
@@ -416,30 +416,16 @@ void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
 	const uint32_t gyroFrequencyNyquist = 1000000 / 2 / gyro.targetLooptime;
 
 	if (lpfHz && lpfHz <= gyroFrequencyNyquist) { // Initialisation needs to happen once samplingrate is known
-		switch (gyroConfig()->gyro_soft_lpf_type) {
-		case FILTER_PT1:
-			gyroSensor->softLpfFilterApplyFn
-					= (filterApplyFnPtr) pt1FilterApply;
-			const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
-			for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-				gyroSensor->softLpfFilterPtr[axis]
-						= (filter_t *) &gyroSensor->softLpfFilter.gyroFilterPt1State[axis];
-				pt1FilterInit(
-						&gyroSensor->softLpfFilter.gyroFilterPt1State[axis],
-						lpfHz, gyroDt);
-			}
-			break;
-		default:
-			gyroSensor->softLpfFilterApplyFn
-					= (filterApplyFnPtr) firFilterDenoiseUpdate;
-			for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-				gyroSensor->softLpfFilterPtr[axis]
-						= (filter_t *) &gyroSensor->softLpfFilter.gyroDenoiseState[axis];
-				firFilterDenoiseInit(
-						&gyroSensor->softLpfFilter.gyroDenoiseState[axis],
-						lpfHz, gyro.targetLooptime);
-			}
-			break;
+
+		gyroSensor->softLpfFilterApplyFn
+				= (filterApplyFnPtr) ptnFilterApply;
+		const float gyroDt = (float) gyro.targetLooptime * 0.000001f;
+		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+			gyroSensor->softLpfFilterPtr[axis]
+					= (filter_t *) &gyroSensor->softLpfFilter.gyroFilterPtnState[axis];
+			ptnFilterInit(
+					&gyroSensor->softLpfFilter.gyroFilterPtnState[axis],
+					2, lpfHz, gyroDt);
 		}
 	}
 } // gyroInitFilterLpf
@@ -455,21 +441,12 @@ static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 		uint16_t gyro_filter_q, uint16_t gyro_filter_r, uint16_t gyro_filter_p) {
 
 	gyroSensor->fastKalmanApplyFn = nullFilterApply;
-#if defined(ROBERT)
-	const float gyrodT = (float) gyro.targetLooptime * 0.000001f;
-#endif
 
-	// If Kalman Filter noise covariances for Process and Measurement are non-zero, we treat as enabled
 	if (gyro_filter_q != 0 && gyro_filter_r != 0) {
 		gyroSensor->fastKalmanApplyFn = (filterApplyFnPtr) fastKalmanUpdate;
 		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
-#if defined(ROBERT)
-			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
-					gyro_filter_p, gyrodT);
-#else
 			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
 					gyro_filter_r, gyro_filter_p);
-#endif
 	}
 } // gyroInitFilterKalman
 
@@ -492,9 +469,8 @@ static void gyroInitSensorFilters(gyroSensor_t *gyroSensor) {
 	gyroInitFilterKalman(gyroSensor, gyroConfig()->gyro_filter_q,
 			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
 	gyroInitFilterFixedKKalman(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2);
-#if defined(USE_OS_LPF)
-	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz); // gyro_soft_lpf_hz_2? gke
-#endif
+	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2); // gke
+
 } // gyroInitSensorFilters
 
 void gyroInitFilters(void) {
@@ -690,7 +666,7 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 				gyroADCf = gyroSensor->fastKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
 				break;
-			case STAGE2_FILTER_FIXED_K_KALMAN:
+			case STAGE2_FILTER_FIXED_K_KALMAN: // Fujin gke
 				gyroADCf = gyroSensor->fixedKKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
 				break;
@@ -698,13 +674,12 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 				break;
 			} // switch
 
-			if (gyroDebugMode != DEBUG_NONE) {
+			if (gyroDebugMode != DEBUG_NONE)
 				DEBUG_SET(DEBUG_GYRO, axis, lrintf(gyroADCf));
-			}
-#if defined(USE_OS_LPF)
+
 			gyroADCf = gyroSensor->softLpfFilterApplyFn(
-					gyroSensor->softLpfFilterPtr[axis], gyroADCf);
-#endif
+								gyroSensor->softLpfFilterPtr[axis], gyroADCf);
+
 			gyro.gyroADCf[axis] = gyroADCf;
 			// integrate using trapezium rule to avoid bias
 			accumulatedMeasurements[axis] += 0.5f * (previousgyroADCf[axis]

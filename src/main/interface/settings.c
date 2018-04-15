@@ -286,7 +286,7 @@ static const char * const lookupTableRatesType[] = {
 
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
 static const char * const lookupTableStage2FilterType[] = {
-    "NONE", "BIQUAD_RC_FIR2", "FAST_KALMAN", "FIXED_K_KALMAN", "PTn"
+    "NONE", "FAST_KALMAN", "FIXED_K_KALMAN", "PTn"
 };
 #endif // Only use lookup when both are enabled
 

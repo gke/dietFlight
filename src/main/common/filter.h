@@ -68,6 +68,18 @@ typedef struct fastKalman_s {
     float lastX;   // previous state
 } fastKalman_t;
 
+typedef struct ABG_s {
+    float q;       // process noise covariance
+    float r;       // measurement noise covariance
+    float p;       // estimation error covariance matrix
+   // float k;       // kalman gain
+    float x;       // state
+    float lastX;   // previous state
+    float a,b,g;
+    float ak_1, vk_1, xk_1;
+    float dT, dT2;
+} ABG_t;
+
 typedef enum {
     FILTER_PT1 = 0,
     FILTER_BIQUAD,
@@ -89,9 +101,10 @@ typedef enum {
 
 typedef enum {
     STAGE2_FILTER_NONE = 0,
-    STAGE2_FILTER_FAST_KALMAN,
-    STAGE2_FILTER_FIXED_K_KALMAN,
-    STAGE2_FILTER_PTn
+    STAGE2_FILTER_FAST_KF,
+    STAGE2_FILTER_FIXED_K_KF,
+    STAGE2_FILTER_ABG,
+    STAGE2_FILTER_PT3
 } stage2FilterType_e;
 
 typedef struct firFilter_s {
@@ -147,3 +160,6 @@ float firFilterLastInput(const firFilter_t *filter);
 
 void firFilterDenoiseInit(firFilterDenoise_t *filter, uint8_t gyroSoftLpfHz, uint16_t targetLooptime);
 float firFilterDenoiseUpdate(firFilterDenoise_t *filter, float input);
+
+void ABGInit(ABG_t *filter, float q, float r, float p, float dt);
+float ABGUpdate(ABG_t *filter, float input);

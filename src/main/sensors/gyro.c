@@ -114,6 +114,9 @@ typedef struct gyroSensor_s {
 	filterApplyFnPtr fixedKKalmanApplyFn;
 	fastKalman_t fastKalman[XYZ_AXIS_COUNT];
 
+	filterApplyFnPtr ABGApplyFn;
+	ABG_t ABG[XYZ_AXIS_COUNT];
+
 } gyroSensor_t;
 STATIC_UNIT_TESTED FAST_RAM gyroSensor_t gyroSensor1;
 #ifdef UNIT_TEST
@@ -146,10 +149,10 @@ PG_RESET_TEMPLATE(gyroConfig_t, gyroConfig,
 		.gyro_soft_notch_cutoff_2 = 0, // not used gke
 		.checkOverflow = GYRO_OVERFLOW_CHECK_YAW,
 		.gyro_soft_lpf_hz_2 = 0, // Fujin/FIXED KF and PTn forced to Nyquist if zero gke
-		.gyro_filter_q = 2000, // was 800 should be around 2000 for 8KHz for Kalyn KF  gke
+		.gyro_filter_q = 400,
 		.gyro_filter_r = 88,
 		.gyro_filter_p = 0,
-		.gyro_stage2_filter_type = STAGE2_FILTER_FIXED_K_KALMAN,
+		.gyro_stage2_filter_type = STAGE2_FILTER_PT3,
 		.gyro_offset_yaw = 0,
 );
 
@@ -417,7 +420,7 @@ void gyroInitNewtonianLimiter(gyroSensor_t *gyroSensor) {
 
 } // gyroInitNewtonianLimiter
 
-void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
+void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t Order, uint8_t lpfHz) {
 
 	const float gyroFrequencyNyquist = (1.0e6f / gyro.targetLooptime) * 0.5f;
 
@@ -429,8 +432,8 @@ void gyroInitFilterLpf(gyroSensor_t *gyroSensor, uint8_t lpfHz) {
 	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
 		gyroSensor->softLpfFilterPtr[axis]
 				= (filter_t *) &gyroSensor->softLpfFilter.gyroFilterPtnState[axis];
-		ptnFilterInit(&gyroSensor->softLpfFilter.gyroFilterPtnState[axis], 2,
-				lpfHz, gyroDt);
+		ptnFilterInit(&gyroSensor->softLpfFilter.gyroFilterPtnState[axis],
+				Order, lpfHz, gyroDt);
 	}
 
 } // gyroInitFilterLpf
@@ -440,9 +443,11 @@ static void gyroInitFilterKalman(gyroSensor_t *gyroSensor,
 
 	if (gyro_filter_q != 0 && gyro_filter_r != 0) {
 		gyroSensor->fastKalmanApplyFn = (filterApplyFnPtr) fastKalmanUpdate;
-		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+		for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
 			fastKalmanInit(&gyroSensor->fastKalman[axis], gyro_filter_q,
 					gyro_filter_r, gyro_filter_p);
+
+		}
 	} else
 		gyroSensor->fastKalmanApplyFn = nullFilterApply;
 } // gyroInitFilterKalman
@@ -461,14 +466,27 @@ static void gyroInitFilterFixedKKalman(gyroSensor_t *gyroSensor, uint16_t lpfHz)
 
 } // gyroInitFilterFixedKKalman
 
+static void gyroInitFilterABG(gyroSensor_t *gyroSensor, uint16_t gyro_filter_q,
+		uint16_t gyro_filter_r, uint16_t gyro_filter_p) {
+
+	gyroSensor->ABGApplyFn = (filterApplyFnPtr) ABGUpdate;
+	const float gyroDt = (float) gyro.targetLooptime * 1.0e-6f;
+	for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++)
+		ABGInit(&gyroSensor->ABG[axis], gyro_filter_q, gyro_filter_r,
+				gyro_filter_p, gyroDt);
+
+} // gyroInitFilterFixedKKalman
 
 static void gyroInitSensorFilters(gyroSensor_t *gyroSensor) {
 
 	gyroInitNewtonianLimiter(gyroSensor);
+
 	gyroInitFilterKalman(gyroSensor, gyroConfig()->gyro_filter_q,
 			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
 	gyroInitFilterFixedKKalman(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2);
-	gyroInitFilterLpf(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2); // gke
+	gyroInitFilterABG(gyroSensor, gyroConfig()->gyro_filter_q,
+			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
+	gyroInitFilterLpf(gyroSensor, 3, gyroConfig()->gyro_soft_lpf_hz_2); // gke
 
 } // gyroInitSensorFilters
 
@@ -663,18 +681,23 @@ static FAST_CODE void gyroUpdateSensor(gyroSensor_t *gyroSensor,
 					* gyroSensor->gyroDev.scale;
 
 			switch (gyroConfig()->gyro_stage2_filter_type) {
-			case STAGE2_FILTER_FAST_KALMAN: // Kalyn fast KF
+			case STAGE2_FILTER_FAST_KF: // Kalyn fast KF
 				gyroADCf = gyroSensor->fastKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
 				break;
-			case STAGE2_FILTER_FIXED_K_KALMAN: // Fujin Fixed K KF
+			case STAGE2_FILTER_FIXED_K_KF: // Fujin Fixed K KF
 				gyroADCf = gyroSensor->fixedKKalmanApplyFn(
 						(filter_t *) &gyroSensor->fastKalman[axis], gyroADCf);
 				break;
-			case STAGE2_FILTER_PTn: // Simple order n filter
+			case STAGE2_FILTER_ABG:
+				gyroADCf = gyroSensor->ABGApplyFn(
+						(filter_t *) &gyroSensor->ABG[axis], gyroADCf);
+				break;
+			case STAGE2_FILTER_PT3: // Simple third order  filter
 				gyroADCf = gyroSensor->softLpfFilterApplyFn(
 						gyroSensor->softLpfFilterPtr[axis], gyroADCf);
 				break;
+			case STAGE2_FILTER_NONE:
 			default:
 				break;
 			} // switch

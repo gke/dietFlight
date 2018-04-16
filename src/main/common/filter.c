@@ -367,3 +367,77 @@ FAST_CODE float fastKalmanUpdate(fastKalman_t *filter, float input) {
 } // fastKalmanUpdate
 
 
+// Robert Bouwens AlphaBetaGamma
+
+void initABGCoeffs(ABG_t* pab, float x_measured, float alpha, float beta) {
+	pab->xk_1 = x_measured;
+	pab->vk_1 = 0;
+	pab->a = alpha;
+	pab->b = beta;
+	pab->g = 0.0f;
+} // InitializeAlphaBeta
+
+// near critically damped filter
+void createNearCriticalFilter(ABG_t* pab, float x_measured, float alpha){
+	const float beta = 0.8f * (2.0f - alpha * alpha - 2.0f * sqrtf(1.0f - alpha * alpha)) / (alpha * alpha);
+
+	initABGCoeffs(pab, x_measured, alpha, beta);
+	pab->g = pab->b * pab->b / (pab->a * 2.0f);
+} // createNearCriticalFilter
+
+void createUnderDampedFilter(ABG_t* pab, float x_measured, float alpha) {
+	const float beta = alpha * alpha / (2.0f - alpha); /*  standard, underdamped beta value */
+
+	initABGCoeffs(pab, x_measured, alpha, beta);
+	pab->g = pab->b * pab->b / (pab->a * 2.0f);
+} // createUnderDampedFilter
+
+
+void ABGInit(ABG_t *filter, float q, float r, float p, float dT) {
+	(void) p;
+	const float Q = q * 0.001f;
+	const float R = r * 0.001f;
+	//    const float ALPHA = 0.85;
+
+	 createNearCriticalFilter(filter, 0.0f, Q);
+	//    calculateAlphaBetaGamma(filter, Q, R, dT);
+	//    createUnderDampedFilter(filter, 0.0f,  ALPHA);
+	//    peter_nachtwey(filter);
+
+	filter->dT = dT;
+	filter->dT2 = dT * dT;
+	filter->xk_1 = 0.0f;
+} // ABGInit
+
+
+FAST_CODE float ABGUpdate(ABG_t *pab, float input) {
+	float xk_1 = pab->xk_1;
+	float vk_1 = pab->vk_1;
+	float ak_1 = pab->ak_1;
+	float alpha = pab->a;
+	float beta = pab->b;
+	float gamma = pab->g;
+
+	//    float xk;   // current system state (ie: position)
+	//    float vk;   // derivative of system state (ie: velocity)
+	float rk; // residual error
+
+	// update our (estimated) state 'x' from the system (ie pos = pos + vel (last).dT)
+	xk_1 += pab->dT * vk_1 + 0.5f * pab->dT2 * ak_1;
+	// update (estimated) velocity
+    vk_1 += pab->dT * ak_1;
+	// what is our residual error (measured - estimated)
+	rk = input - xk_1;
+	// update our estimates given the residual error.
+	xk_1 += alpha * rk;
+	vk_1 += beta / pab->dT * rk;
+	if (gamma != 0.0f)
+		ak_1 = ak_1 + gamma / (2.0f * pab->dT2) * rk;
+
+	pab->vk_1 = vk_1;
+	pab->xk_1 = xk_1;
+	pab->ak_1 = ak_1;
+
+	return xk_1;
+} // ABGUpdate
+

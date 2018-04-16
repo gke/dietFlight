@@ -95,10 +95,10 @@ typedef struct gyroCalibration_s {
 bool firstArmingCalibrationWasStarted = false;
 
 typedef union gyroSoftFilter_u {
-	biquadFilter_t gyroFilterLpfState[XYZ_AXIS_COUNT];
+	// gke biquadFilter_t gyroFilterLpfState[XYZ_AXIS_COUNT];
 	pt1Filter_t gyroFilterPt1State[XYZ_AXIS_COUNT];
 	ptnFilter_t gyroFilterPtnState[XYZ_AXIS_COUNT];
-	firFilterDenoise_t gyroDenoiseState[XYZ_AXIS_COUNT];
+	// gke firFilterDenoise_t gyroDenoiseState[XYZ_AXIS_COUNT];
 } gyroSoftLpfFilter_t;
 
 typedef struct gyroSensor_s {
@@ -481,12 +481,13 @@ static void gyroInitSensorFilters(gyroSensor_t *gyroSensor) {
 
 	gyroInitNewtonianLimiter(gyroSensor);
 
+	// coded to allow one of each in any combination gke
 	gyroInitFilterKalman(gyroSensor, gyroConfig()->gyro_filter_q,
 			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
 	gyroInitFilterFixedKKalman(gyroSensor, gyroConfig()->gyro_soft_lpf_hz_2);
 	gyroInitFilterABG(gyroSensor, gyroConfig()->gyro_filter_q,
-			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p);
-	gyroInitFilterLpf(gyroSensor, 3, gyroConfig()->gyro_soft_lpf_hz_2); // gke
+			gyroConfig()->gyro_filter_r, gyroConfig()->gyro_filter_p); // Robert
+	gyroInitFilterLpf(gyroSensor, 3, gyroConfig()->gyro_soft_lpf_hz_2); // PT3 gke
 
 } // gyroInitSensorFilters
 

@@ -304,6 +304,9 @@ static void imuMahonyAHRSupdate(float dt, float gx, float gy, float gz,
     // Use measured acceleration vector
     float recipAccNorm = sq(ax) + sq(ay) + sq(az);
     if (useAcc && recipAccNorm > 0.01f) {
+
+    	// TODO: change to UAVX scheme gke
+
         // Normalise accelerometer measurement
         recipAccNorm = invSqrt(recipAccNorm);
         ax *= recipAccNorm;
@@ -393,8 +396,29 @@ STATIC_UNIT_TESTED void imuUpdateEulerAngles(void)
     }
 }
 
-static bool imuIsAccelerometerHealthy(void)
-{
+/* TODO: add UAVX scheme gke
+float CalculateAccConfidence(float AccMag) {
+	// From UAVX
+	// Gaussian decay in accelerometer value belief
+	static float confp = 1.0f;
+	float conf, accNorm;
+
+	accNorm = AccMag * GRAVITY_MPS_S_R;
+	conf = expf(-0.5f * Sqr((1.0f - accNorm) * AccConfidenceSDevR));
+
+	//TODO: if (F.IsFixedWing && (Acc[BF] * GRAVITY_MPS_S_R > 0.5f) && (accNorm > Sqr(1.2f)))
+	//	conf = 0.0f; // for hand launced takoffs
+
+	confp = LPF1(confp, conf, 0.1f);
+
+	return (confp);
+} // CalculateAccConfidence
+
+*/
+
+static bool imuIsAccelerometerHealthy(void) {
+
+	// TODO: this needs to be redone using UAVX normal distribution gke
     float accMagnitude = 0;
     for (int axis = 0; axis < 3; axis++) {
         const float a = acc.accADC[axis];
@@ -403,9 +427,10 @@ static bool imuIsAccelerometerHealthy(void)
 
     accMagnitude = accMagnitude * 100 / (sq((int32_t)acc.dev.acc_1G));
 
-    // Accept accel readings only in range 0.90g - 1.10g
-    return (81 < accMagnitude) && (accMagnitude < 121);
-}
+    // Accept accel readings presumably G%
+    return (accMagnitude > 71) && (accMagnitude < 141); // was 81..121 Robert but originally 90..110
+
+} // imuIsAccelerometerHealthy
 
 static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
 {
@@ -418,9 +443,9 @@ static void imuCalculateEstimatedAttitude(timeUs_t currentTimeUs)
     const timeDelta_t deltaT = currentTimeUs - previousIMUUpdateTime;
     previousIMUUpdateTime = currentTimeUs;
 
-    if (imuIsAccelerometerHealthy()) {
+    if (imuIsAccelerometerHealthy())
         useAcc = true;
-    }
+
 
 #ifdef USE_MAG
     if (sensors(SENSOR_MAG) && compassIsHealthy()) {

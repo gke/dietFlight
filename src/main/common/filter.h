@@ -33,6 +33,12 @@ typedef struct pt1Filter_s {
     float k;
 } pt1Filter_t;
 
+typedef struct ptnFilter_s {
+    float state[5];
+    float k;
+    uint8_t order;
+} ptnFilter_t;
+
 typedef struct slewFilter_s {
     float state;
     float slewLimit;
@@ -62,6 +68,18 @@ typedef struct fastKalman_s {
     float lastX;   // previous state
 } fastKalman_t;
 
+typedef struct ABG_s {
+    float q;       // process noise covariance
+    float r;       // measurement noise covariance
+    float p;       // estimation error covariance matrix
+   // float k;       // kalman gain
+    float x;       // state
+    float lastX;   // previous state
+    float a,b,g;
+    float ak_1, vk_1, xk_1;
+    float dT, dT2;
+} ABG_t;
+
 typedef enum {
     FILTER_PT1 = 0,
     FILTER_BIQUAD,
@@ -83,9 +101,10 @@ typedef enum {
 
 typedef enum {
     STAGE2_FILTER_NONE = 0,
-    STAGE2_FILTER_BIQUAD_RC_FIR2,
-    STAGE2_FILTER_FAST_KALMAN,
-    STAGE2_FILTER_FIXED_K_KALMAN
+    STAGE2_FILTER_FAST_KF,
+    STAGE2_FILTER_FIXED_K_KF,
+    STAGE2_FILTER_ABG,
+    STAGE2_FILTER_PT3
 } stage2FilterType_e;
 
 typedef struct firFilter_s {
@@ -120,8 +139,11 @@ float fixedKKalmanUpdate(fastKalman_t *filter, float input);
 // not exactly correct, but very very close and much much faster
 #define filterGetNotchQApprox(centerFreq, cutoff)   ((float)(cutoff * centerFreq) / ((float)(centerFreq - cutoff) * (float)(centerFreq + cutoff)))
 
-void pt1FilterInit(pt1Filter_t *filter, uint8_t f_cut, float dT);
+void pt1FilterInit(pt1Filter_t *filter, uint16_t f_cut, float dT);
 float pt1FilterApply(pt1Filter_t *filter, float input);
+
+void ptnFilterInit(ptnFilter_t *filter, uint8_t order, uint16_t f_cut, float dT);
+float ptnFilterApply(ptnFilter_t *filter, float input);
 
 void slewFilterInit(slewFilter_t *filter, float slewLimit, float threshold);
 float slewFilterApply(slewFilter_t *filter, float input);
@@ -138,3 +160,6 @@ float firFilterLastInput(const firFilter_t *filter);
 
 void firFilterDenoiseInit(firFilterDenoise_t *filter, uint8_t gyroSoftLpfHz, uint16_t targetLooptime);
 float firFilterDenoiseUpdate(firFilterDenoise_t *filter, float input);
+
+void ABGInit(ABG_t *filter, float q, float r, float p, float dt);
+float ABGUpdate(ABG_t *filter, float input);

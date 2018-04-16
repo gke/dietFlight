@@ -919,9 +919,8 @@ static void subTaskMotorUpdate(timeUs_t currentTimeUs)
 
 #ifdef USE_SERVOS
     // motor outputs are used as sources for servo mixing, so motors must be calculated using mixTable() before servos.
-    if (isMixerUsingServos()) {
+    if (isMixerUsingServos())
         writeServos();
-    }
 #endif
 
     writeMotors();

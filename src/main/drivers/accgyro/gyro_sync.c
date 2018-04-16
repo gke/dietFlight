@@ -46,7 +46,7 @@ uint32_t gyroSetSampleRate(gyroDev_t *gyro, uint8_t lpf, uint8_t gyroSyncDenomin
                 gyroSamplePeriod = 1000000.0f / 9000.0f;
                 break;
             default:
-                gyro->gyroRateKHz = GYRO_RATE_8_kHz;
+                gyro->gyroRateKHz = GYRO_RATE_8_kHz; // default gke
                 gyroSamplePeriod = 125.0f;
                 break;
             }

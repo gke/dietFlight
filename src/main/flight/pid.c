@@ -59,10 +59,10 @@ const angle_index_t rcAliasToAngleIndexMap[] = { AI_ROLL, AI_PITCH };
 
 static FAST_RAM float itermAccelerator = 1.0f;
 
+static FAST_RAM filterApplyFnPtr rateLpfApplyFn;
+static FAST_RAM void *rateFilterLpf[3];
 static FAST_RAM filterApplyFnPtr dtermLpfApplyFn;
 static FAST_RAM void *dtermFilterLpf[2];
-static FAST_RAM filterApplyFnPtr ptermYawFilterApplyFn;
-static FAST_RAM void *ptermYawFilter;
 static FAST_RAM bool pidStabilisationEnabled;
 
 FAST_RAM float RateP[3], RateI[3], RateD[3], RateOut[3];
@@ -70,17 +70,11 @@ static FAST_RAM float RateKp[3], RateKi[3], RateKd[3];
 static FAST_RAM float maxVel[3];
 static FAST_RAM float relaxFactor;
 static FAST_RAM float dtermSetpointWeight;
-static FAST_RAM float AngleKp, hrzGain, hrzTransition,
-		hrzCutoffDegrees, hrzRatio;
+static FAST_RAM float AngleKp, hGain, hTransition, hCutoffDegrees,
+		hRatio;
 static FAST_RAM float ITermWindupPointInv;
-static FAST_RAM uint8_t hrzTiltExpertMode;
+static FAST_RAM uint8_t hTiltExpertMode;
 static FAST_RAM float itermLimit;
-
-typedef union dtermFilterLpf_u {
-	pt1Filter_t pt1Filter[2];
-	biquadFilter_t biquadFilter[2];
-	firFilterDenoise_t denoisingFilter[2];
-} dtermFilterLpf_t;
 
 static FAST_RAM float targetdT;
 PG_REGISTER_WITH_RESET_TEMPLATE(pidConfig_t, pidConfig, PG_PID_CONFIG, 2)
@@ -123,15 +117,15 @@ void resetPidProfile(pidProfile_t *pidProfile) {
 
 			.pidSumLimit = PIDSUM_LIMIT,
 			.pidSumLimitYaw = PIDSUM_LIMIT_YAW,
-			.yaw_lpf_hz = 0,
+			.yaw_lpf_hz = 20, // was 0 gke
 			// notch filters not used gke
 			.dterm_lpf_hz = 100, // filtering ON by default
-			.dterm_notch_hz = 260,
-			.dterm_notch_cutoff = 160,
+			.dterm_notch_hz = 0,  // unused gke
+			.dterm_notch_cutoff = 0, // unused gke
 			.dterm_filter_type = FILTER_PT1,
 			.dterm_filter_style = KD_FILTER_CLASSIC,
 			.itermWindupPointPercent = 50,
-			.vbatPidCompensation = 0,
+			.vbatPidCompensation = 0, // unused
 			.pidAtMinThrottle = PID_STABILISATION_ON,
 			.levelAngleLimit = 55,
 			.setpointRelaxRatio = 100,
@@ -140,7 +134,7 @@ void resetPidProfile(pidProfile_t *pidProfile) {
 			.rateAccelLimit = 0,
 			.itermThrottleThreshold = 350,
 			.itermAcceleratorGain = 1000,
-			// crash stuff not used
+			// crash stuff not used gke
 			.crash_time = 500, // ms
 			.crash_delay = 0, // ms
 			.crash_recovery_angle = 10, // degrees
@@ -191,14 +185,14 @@ void pidInitFilters(const pidProfile_t *pidProfile) {
 	BUILD_BUG_ON(FD_YAW != 2); // only setting up Dterm filters on roll and pitch axes, so ensure yaw axis is 2
 
 	if (targetPidLooptime == 0) {
+		rateLpfApplyFn = nullFilterApply;
 		dtermLpfApplyFn = nullFilterApply;
-		ptermYawFilterApplyFn = nullFilterApply;
 		return;
 	}
 
 	const float coeffsPavel[] = { 0.375f, 0.5f, -0.5f, -0.75, 0.125f, 0.25f };
 
-	for (int a = FD_ROLL; a <= FD_YAW; a++) // inc yaw for later gke
+	for (int a = FD_ROLL; a <= FD_YAW; a++) // TODO: inc yaw for later gke
 #if defined(USE_PAVEL)
 		firFilterInit(&dFIR[a], dFIRBuff[a].b, 6, coeffsPavel);
 #else
@@ -207,27 +201,30 @@ void pidInitFilters(const pidProfile_t *pidProfile) {
 
 	const uint32_t pidFrequencyNyquist = (1.0f / targetdT) / 2; // No rounding needed
 
-	static dtermFilterLpf_t dtermFilterLpfUnion;
+	static  ptnFilter_t rateFilterLpf[3];
 	if (pidProfile->dterm_lpf_hz == 0 || pidProfile->dterm_lpf_hz
 			> pidFrequencyNyquist)
-		dtermLpfApplyFn = nullFilterApply;
+		rateLpfApplyFn = nullFilterApply;
 	else {
-		dtermLpfApplyFn = (filterApplyFnPtr) pt1FilterApply;
-		for (int a = FD_ROLL; a <= FD_PITCH; a++) {
-			dtermFilterLpf[a] = &dtermFilterLpfUnion.pt1Filter[a];
-			pt1FilterInit(dtermFilterLpf[a], pidProfile->dterm_lpf_hz, targetdT);
-		}
+		rateLpfApplyFn = (filterApplyFnPtr) ptnFilterApply;
+		for (int a = FD_ROLL; a <= FD_PITCH; a++)
+			// gke should have separate cutoff from dterm
+			ptnFilterInit(&rateFilterLpf[a], 2, gyroConfig()->gyro_soft_lpf_hz,
+					targetdT);
+		ptnFilterInit(&rateFilterLpf[FD_YAW], 2, pidProfile->yaw_lpf_hz,
+							targetdT);
 	}
 
-	static pt1Filter_t pt1FilterYaw;
-	if (pidProfile->yaw_lpf_hz == 0 || pidProfile->yaw_lpf_hz
-			> pidFrequencyNyquist)
-		ptermYawFilterApplyFn = nullFilterApply;
-	else {
-		ptermYawFilterApplyFn = (filterApplyFnPtr) pt1FilterApply;
-		ptermYawFilter = &pt1FilterYaw;
-		pt1FilterInit(ptermYawFilter, pidProfile->yaw_lpf_hz, targetdT);
+	static ptnFilter_t dtermFilterLpf[2];
+	if (pidProfile->dterm_lpf_hz == 0 || pidProfile->dterm_lpf_hz
+			> pidFrequencyNyquist) {
+		dtermLpfApplyFn = nullFilterApply;
+	} else {
+		dtermLpfApplyFn = (filterApplyFnPtr) ptnFilterApply;
+		for (int axis = FD_ROLL; axis <= FD_PITCH; axis++)
+			ptnFilterInit(&dtermFilterLpf[axis], 1, pidProfile->dterm_lpf_hz, targetdT);
 	}
+
 } // pidInitFilters
 
 
@@ -241,11 +238,11 @@ void pidInitConfig(const pidProfile_t *pidProfile) {
 	dtermSetpointWeight = pidProfile->dtermSetpointWeight * 0.01f; // %
 	relaxFactor = 1.0f / (pidProfile->setpointRelaxRatio * 0.01f);
 	AngleKp = pidProfile->pid[PID_LEVEL].P * 0.1f;
-	hrzGain = pidProfile->pid[PID_LEVEL].I * 0.1f;
-	hrzTransition = (float) pidProfile->pid[PID_LEVEL].D;
-	hrzTiltExpertMode = pidProfile->horizon_tilt_expert_mode;
-	hrzCutoffDegrees = (175.0f - pidProfile->horizon_tilt_effect) * 1.8f;
-	hrzRatio = (100.0f - pidProfile->horizon_tilt_effect) * 0.01f;
+	hGain = pidProfile->pid[PID_LEVEL].I * 0.1f;
+	hTransition = (float) pidProfile->pid[PID_LEVEL].D;
+	hTiltExpertMode = pidProfile->horizon_tilt_expert_mode;
+	hCutoffDegrees = (175.0f - pidProfile->horizon_tilt_effect) * 1.8f;
+	hRatio = (100.0f - pidProfile->horizon_tilt_effect) * 0.01f;
 	maxVel[FD_ROLL] = maxVel[FD_PITCH] = pidProfile->rateAccelLimit * 100.0f
 			* targetdT;
 	maxVel[FD_YAW] = pidProfile->yawRateAccelLimit * 100.0f * targetdT;
@@ -271,24 +268,23 @@ void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex) {
 } // pidCopyProfile
 
 static float calcHorizonLevelStrength(void) {
-	float currInclination, levelStrength, sensitFact,
-			tiltRatio;
+	float maxAngle, levelStrength, sensitFact, tiltRatio;
 
 	levelStrength = 1.0f - MAX(getRcDeflectionAbs(FD_ROLL),
 			getRcDeflectionAbs(FD_PITCH));
 
-	currInclination = MAX(ABS(attitude.values.roll), ABS(
+	maxAngle = MAX(ABS(attitude.values.roll), ABS(
 					attitude.values.pitch)) * 0.1f;
 
-	if (hrzRatio < 1.0f) { // if hrzTiltEffect > 0
-		tiltRatio = (180.0f - currInclination) / 180.0f * (1.0f
-				- hrzRatio) + hrzRatio;
-		sensitFact = hrzTransition * tiltRatio;
+	if (hRatio < 1.0f) { // if hTiltEffect > 0
+		tiltRatio = (180.0f - maxAngle) / 180.0f * (1.0f - hRatio)
+				+ hRatio;
+		sensitFact = hTransition * tiltRatio;
 	} else
-		sensitFact = hrzTransition;
+		sensitFact = hTransition;
 
-	levelStrength = (sensitFact <= 0.0f) ? 0.0f : ((levelStrength
-			- 1.0f) * (100.0f / sensitFact)) + 1.0f;
+	levelStrength = (sensitFact <= 0.0f) ? 0.0f : ((levelStrength - 1.0f)
+			* (100.0f / sensitFact)) + 1.0f;
 
 	return constrainf(levelStrength, 0.0f, 1.0f);
 } // calcHorizonLevelStrength
@@ -308,8 +304,7 @@ static float pidLevel(int a, const pidProfile_t *pidProfile,
 		desiredRate = AngleE * AngleKp;
 	else {
 		levelStrength = calcHorizonLevelStrength();
-		desiredRate = desiredRate + (AngleE * hrzGain
-				* levelStrength);
+		desiredRate = desiredRate + (AngleE * hGain * levelStrength);
 	}
 	return desiredRate;
 } // pidLevel
@@ -373,13 +368,14 @@ void pidController(const pidProfile_t *pidProfile,
 
 	for (int a = FD_ROLL; a <= FD_YAW; a++) {
 		desiredRate = getSetpointRate(a);
-		if (maxVel[a] != 0.0f)
+		if (maxVel[a] <= 0.0f)
 			desiredRate = limitAcc(a, desiredRate);
 
 		if ((FLIGHT_MODE(ANGLE_MODE) || FLIGHT_MODE(HORIZON_MODE)) && a != YAW)
 			desiredRate = pidLevel(a, pidProfile, angleTrim, desiredRate);
 
-		Rate = gyro.gyroADCf[a];
+		Rate = rateLpfApplyFn(rateFilterLpf[a],gyro.gyroADCf[a]);
+
 		RateE = desiredRate - Rate;
 
 		RateP[a] = RateE * RateKp[a] * tpaFactor;
@@ -389,10 +385,9 @@ void pidController(const pidProfile_t *pidProfile,
 		if ((ABS(ITermNew) < ABS(ITerm)) || !mixerIsOutputSaturated(a, RateE)) // windup limiting
 			RateI[a] = ITermNew;
 
-		if (a == FD_YAW) {
-			RateP[a] = ptermYawFilterApplyFn(ptermYawFilter, RateP[a]);
-			RateOut[a] = RateP[a] + RateI[a];
-		} else {
+		if (a == FD_YAW)
+			RateOut[a] = RateP[a] + RateI[a]; // TODO: add dTerm? gke
+		else {
 			RateD[a] = RateKd[a] * rateDerivative(a, RateE, dTR) * tpaFactor;
 			RateOut[a] = RateP[a] + RateI[a] + RateD[a];
 		}

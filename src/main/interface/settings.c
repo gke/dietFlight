@@ -284,22 +284,10 @@ static const char * const lookupTableRatesType[] = {
     "BETAFLIGHT", "RACEFLIGHT"
 };
 
-#ifdef USE_OVERCLOCK
-static const char * const lookupOverclock[] = {
-    "OFF",
-#if defined(STM32F40_41xxx)
-    "192MHZ", "216MHZ", "240MHZ"
-#elif defined(STM32F411xE)
-    "108MHZ", "120MHZ"
-#endif
-};
-#endif
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
-#ifdef USE_GYRO_FAST_KALMAN
 static const char * const lookupTableStage2FilterType[] = {
-    "NONE", "BIQUAD_RC_FIR2", "FAST_KALMAN", "FIXED_K_KALMAN"
+    "NONE", "FAST_KF", "FIXED_K_KF", "ABG", "PT3"
 };
-#endif
 #endif // Only use lookup when both are enabled
 
 const lookupTableEntry_t lookupTables[] = {
@@ -359,13 +347,8 @@ const lookupTableEntry_t lookupTables[] = {
 #endif
     { lookupTableRatesType, sizeof(lookupTableRatesType) / sizeof(char *) },
 
-#ifdef USE_OVERCLOCK
-    { lookupOverclock, sizeof(lookupOverclock) / sizeof(char *) },
-#endif
 #ifdef USE_GYRO_BIQUAD_RC_FIR2
-#ifdef USE_GYRO_FAST_KALMAN
     { lookupTableStage2FilterType, sizeof(lookupTableStage2FilterType) / sizeof(char *) },
-#endif
 #endif // Only enable lookup if both are available
 };
 
@@ -398,12 +381,10 @@ const clivalue_t valueTable[] = {
 #else
 #if defined(USE_GYRO_BIQUAD_RC_FIR2)
     { "gyro_stage2_lowpass_hz",     VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_soft_lpf_hz_2) },
-#if defined(USE_GYRO_FAST_KALMAN)
     { "gyro_filter_q",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_q) },
     { "gyro_filter_r",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_r) },
     { "gyro_filter_p",              VAR_UINT16 | MASTER_VALUE, .config.minmax = { 0, 16000 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_filter_p) },
     { "gyro_stage2_filter_type",    VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_STAGE2_FILTER_TYPE }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyro_stage2_filter_type) },
-#endif
 #endif
 #endif
     { "moron_threshold",            VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0,  200 }, PG_GYRO_CONFIG, offsetof(gyroConfig_t, gyroMovementCalibrationThreshold) },
@@ -850,9 +831,6 @@ const clivalue_t valueTable[] = {
 #endif
     { "debug_mode",                 VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_DEBUG }, PG_SYSTEM_CONFIG, offsetof(systemConfig_t, debug_mode) },
     { "rate_6pos_switch",           VAR_INT8   | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OFF_ON }, PG_SYSTEM_CONFIG, offsetof(systemConfig_t, rateProfile6PosSwitch) },
-#ifdef USE_OVERCLOCK
-    { "cpu_overclock",              VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_OVERCLOCK }, PG_SYSTEM_CONFIG, offsetof(systemConfig_t, cpu_overclock) },
-#endif
     { "pwr_on_arm_grace",           VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0, 30 }, PG_SYSTEM_CONFIG, offsetof(systemConfig_t, powerOnArmingGraceTime) },
 
 // PG_VTX_CONFIG
